@@ -3,11 +3,8 @@ package pl.slogerski.heartistica;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.render.Camera;
-import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.VertexConsumer;
-import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.EquipmentSlot;
@@ -31,8 +28,7 @@ final class PlayerHeartRenderer {
     private static final int HEART_COLOR = 0xFFFF4057;
     private static final int ABSORPTION_COLOR = 0xFFFFC83D;
     private static final float HEART_HEIGHT = 8;
-    private static final float HEART_ADVANCE = 9;
-    private static final float ROW_ADVANCE = 9;
+    private static final float ROW_ADVANCE = HEART_HEIGHT;
     private static final Map<PlayerEntity, PlayerState> STATES = new IdentityHashMap<>();
     private static final List<PlayerState> SELECTED = new ArrayList<>();
     private static final PriorityQueue<PlayerState> NEAREST = new PriorityQueue<>(
@@ -128,7 +124,7 @@ final class PlayerHeartRenderer {
         HeartStyles.Style style = HeartStyles.selected();
         style.resolve(client);
         float heartWidth = HEART_HEIGHT * style.icon(0).width() / style.icon(0).height();
-        float heartAdvance = Math.max(HEART_ADVANCE, heartWidth);
+        float heartAdvance = Math.max(0, heartWidth - 1);
         if (renderBuffers != null && renderBuffers.layer != style.layer()) {
             renderBuffers.close();
             renderBuffers = null;
@@ -145,7 +141,7 @@ final class PlayerHeartRenderer {
                 double anchorY = position.y + player.getHeight() + 0.62 + config.heightOffsetPixels / 16.0;
                 int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1)
                         / HeartDisplayState.HEARTS_PER_ROW;
-                float startX = numeric ? -(state.anchorWidth + 1 + heartAdvance) / 2
+                float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2
                         : -display.anchorSlots * heartAdvance / 2;
                 float width = numeric ? state.textWidth + 1 + heartWidth
                         : (Math.min(display.slots, HeartDisplayState.HEARTS_PER_ROW) - 1) * heartAdvance + heartWidth;

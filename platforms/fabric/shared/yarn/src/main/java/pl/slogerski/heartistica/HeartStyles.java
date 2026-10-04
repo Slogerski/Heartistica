@@ -22,6 +22,11 @@ final class HeartStyles {
             Identifier.of("minecraft", "hud/heart/absorbing_half")
     };
     private static final Style VANILLA = new Style("resource_pack", "", null);
+    private static final Identifier[] HARDCORE_HUD = {
+            Identifier.of("minecraft", "hud/heart/hardcore_full"), Identifier.of("minecraft", "hud/heart/hardcore_half"),
+            Identifier.of("minecraft", "hud/heart/container_hardcore"), Identifier.of("minecraft", "hud/heart/absorbing_hardcore_full"),
+            Identifier.of("minecraft", "hud/heart/absorbing_hardcore_half")
+    };
     private static volatile List<Style> styles = List.of(VANILLA);
 
     static void register() {
@@ -68,6 +73,7 @@ final class HeartStyles {
         private final String name;
         private Icon[] icons;
         private Object lastHudSprite;
+        private boolean lastHardcore;
         private RenderLayer layer;
 
         Style(String id, String name, Icon[] icons) {
@@ -81,11 +87,14 @@ final class HeartStyles {
 
         void resolve(MinecraftClient client) {
             if (!id.equals("resource_pack")) return;
-            Resolved resolved = HeartStyleResolver.resolve(client, HUD, lastHudSprite);
+            boolean hardcore = client.world != null && client.world.getLevelProperties().isHardcore();
+            if (hardcore != lastHardcore) lastHudSprite = null;
+            Resolved resolved = HeartStyleResolver.resolve(client, hardcore ? HARDCORE_HUD : HUD, lastHudSprite, hardcore);
             if (resolved == null) return;
             icons = resolved.icons;
             layer = resolved.layer;
             lastHudSprite = resolved.token;
+            lastHardcore = hardcore;
         }
 
         RenderLayer layer() { return layer; }

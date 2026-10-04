@@ -9,8 +9,8 @@ public final class HeartDisplayStateTest {
     public static void main(String[] args) throws Exception {
         HeartDisplayState s = new HeartDisplayState();
         s.update(20, 20, 0, false, false, 0);
-        check(s.slots == 10, "ten positions at full health");
-        for (int i = 0; i < 10; i++) check(s.sprites[i] == HeartDisplayState.FULL, "one full sprite per slot");
+        check(s.slots == 0, "full normal health is hidden");
+        for (int i = 0; i < 10; i++) check(s.sprites[i] == HeartDisplayState.HIDDEN, "full-health slots are hidden");
         check(!s.update(20, 20, 0, false, false, 1), "unchanged state reuses layout");
         s.update(15, 20, 3, false, false, 100);
         check(s.sprites[7] == HeartDisplayState.HALF, "15 HP includes a half heart");
@@ -20,7 +20,7 @@ public final class HeartDisplayStateTest {
 
         s = new HeartDisplayState();
         s.update(60, 60, 0, false, false, 0);
-        check(s.slots == 30 && (s.slots + 9) / 10 == 3, "thirty hearts use three rows");
+        check(s.slots == 0, "custom full-health rows are hidden");
         s.update(40, 60, 0, false, false, 100);
         check(s.slots == 30 && s.sprites[20] == HeartDisplayState.EMPTY, "upper empties appear after damage");
         check(!s.update(40, 60, 0, false, false, 5099), "timer does not rebuild before expiry");
@@ -46,14 +46,14 @@ public final class HeartDisplayStateTest {
         s.update(20, 20, 4, true, false, 13000);
         check(s.label.equals("24/20") && s.goldLabel, "combined numeric includes absorption");
         s.update(20, 20, 0, true, false, 14000);
-        check(s.label.equals("20/20") && !s.goldLabel, "regular numeric returns to red");
-        s.update(100, 100, 0, true, false, 15000);
-        check(s.label.equals("100/100"), "custom maximum HP preserved");
+        check(s.label.isEmpty() && !s.goldLabel, "full-health numeric is hidden after absorption ends");
+        s.update(99, 100, 0, true, false, 15000);
+        check(s.label.equals("99/100"), "custom maximum HP preserved");
         s.update(1, 20, 0.5F, false, true, 16000);
         check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD_HALF, "fractional absorption rounds to half heart");
         s.update(Float.NaN, Float.POSITIVE_INFINITY, Float.NaN, true, true, 17000);
         check(s.label.equals("0/?"), "invalid floats cannot corrupt layout");
-        s.update(Float.MAX_VALUE, Float.MAX_VALUE, Float.MAX_VALUE, false, false, 18000);
+        s.update(199, Float.MAX_VALUE, Float.MAX_VALUE, false, false, 18000);
         check(s.slots == 200, "server values cannot exceed layout buffers");
 
         s = new HeartDisplayState();
@@ -72,15 +72,36 @@ public final class HeartDisplayStateTest {
         s.update(80, 100, 0, false, false, 10600);
         check(s.slots == 40, "increasing maximum does not invent upper empty-heart timers");
 
-        check(HeartVisibilityRules.matches(15, 20, 0, false, false, true), "only damaged accepts real damage");
-        check(!HeartVisibilityRules.matches(20, 20, 0, false, false, true), "only damaged hides full health");
-        check(!HeartVisibilityRules.matches(15, 20, 4, false, false, true), "only damaged hides absorption");
-        check(!HeartVisibilityRules.matches(15, Float.POSITIVE_INFINITY, 0, false, false, true), "invalid maximum is not proof of damage");
-        check(!HeartVisibilityRules.matches(15, 20, Float.NaN, false, false, true), "unknown absorption does not pass damaged filter");
-        check(!HeartVisibilityRules.matches(0, 20, 0, false, false, true), "dead players do not pass damaged filter");
-        check(!HeartVisibilityRules.matches(20, 20, Float.POSITIVE_INFINITY, false, true, false), "invalid absorption cannot show empty icon rows");
-        check(HeartVisibilityRules.matches(20, 20, 0, true, true, false), "zero absorption remains visible numerically");
-        check(!HeartVisibilityRules.matches(20, 20, 0, false, true, false), "zero absorption has no icon row");
+        check(HeartVisibilityRules.matches(15, 20, 0, false, false), "damage remains visible");
+        check(!HeartVisibilityRules.matches(20, 20, 0, false, false), "full health without absorption is hidden");
+        check(HeartVisibilityRules.matches(15, 20, 4, false, false), "damage and absorption remain visible together");
+        check(HeartVisibilityRules.matches(20, 20, 4, false, false), "absorption remains visible at full health");
+        check(!HeartVisibilityRules.matches(15, Float.POSITIVE_INFINITY, 0, false, false), "invalid maximum is not proof of damage");
+        check(HeartVisibilityRules.matches(15, 20, Float.NaN, false, false), "invalid absorption does not hide known damage");
+        check(!HeartVisibilityRules.matches(0, 20, 0, false, false), "dead players do not pass damage filter");
+        check(!HeartVisibilityRules.matches(20, 20, Float.POSITIVE_INFINITY, false, true), "invalid absorption cannot show empty icon rows");
+        check(HeartVisibilityRules.matches(20, 20, 0, true, true), "zero absorption remains visible numerically");
+        check(!HeartVisibilityRules.matches(20, 20, 0, false, true), "zero absorption has no icon row");
+
+        s = new HeartDisplayState();
+        s.update(20, 20, 3, false, false, 0);
+        check(s.slots == 2 && s.sprites[0] == HeartDisplayState.GOLD
+                && s.sprites[1] == HeartDisplayState.GOLD_HALF, "full-health icons contain only absorption");
+        s.update(19, 20, 3, false, false, 1);
+        check(s.slots == 12 && s.sprites[9] == HeartDisplayState.HALF
+                && s.sprites[10] == HeartDisplayState.GOLD, "damage restores normal hearts without hiding absorption");
+        s.update(20, 20, 3, false, false, 2);
+        check(s.slots == 2 && s.sprites[0] == HeartDisplayState.GOLD, "healing hides only normal hearts");
+        s.update(20, 20, 0, false, false, 3);
+        check(s.slots == 0, "full health without absorption contains no icons");
+        s.update(20, 20, 0, true, false, 4);
+        check(s.label.isEmpty() && s.anchorLabel.isEmpty(), "hidden numeric health has no unused anchor text");
+        s.update(21, 20, 2, false, false, 5);
+        check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD, "health above maximum does not hide absorption");
+        s.update(Float.NaN, 20, 2, false, false, 6);
+        check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD, "unknown normal health does not hide valid absorption");
+        s.update(15, 20, 0, true, false, 7);
+        check(s.label.equals("15/20") && !s.goldLabel, "damage restores red numeric health");
         verifyConfiguration();
         System.out.println("Heart display regression checks passed: " + assertions);
     }
@@ -90,7 +111,7 @@ public final class HeartDisplayStateTest {
         Path file = directory.resolve("settings.json");
         try {
             HeartisticaConfig config = HeartisticaConfig.load(file);
-            check(config.range == 48 && config.nearestPlayers == 0, "missing config uses defaults");
+            check(config.enabled && config.range == 48 && config.nearestPlayers == 0, "missing config enables mod by default");
             Files.writeString(file, "{\"range\":15}");
             check(HeartisticaConfig.load(file).range == 48, "unversioned legacy config migrates");
             Files.writeString(file, "{\"range\":15,\"configVersion\":2}");
@@ -100,12 +121,13 @@ public final class HeartDisplayStateTest {
             config = HeartisticaConfig.load(file);
             check(config.range == 128 && config.nearestPlayers == 0 && config.scalePercent == 50
                     && config.heightOffsetPixels == 4, "out-of-range config values are bounded");
-            check(config.heartStyle.equals("resource_pack") && !config.onlyDamagedWithoutAbsorption,
-                    "invalid style and conflicting filters are sanitized");
+            check(config.heartStyle.equals("resource_pack") && config.onlyAbsorption,
+                    "invalid style is sanitized and legacy filter is ignored");
             config.range = 0;
             check(config.rangeSquared() == Double.POSITIVE_INFINITY, "OFF removes distance limit");
             config.heartStyle = "heartistica";
             config.save(file);
+            check(!Files.readString(file).contains("onlyDamagedWithoutAbsorption"), "removed filter is not saved");
             config = HeartisticaConfig.load(file);
             check(config.range == 0 && config.heartStyle.equals("heartistica") && config.onlyAbsorption,
                     "replacing existing config retains settings on reload");

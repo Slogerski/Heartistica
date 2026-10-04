@@ -22,6 +22,11 @@ final class HeartStyles {
             Identifier.withDefaultNamespace("hud/heart/absorbing_half")
     };
     private static final Style VANILLA = new Style("resource_pack", "", null);
+    private static final Identifier[] HARDCORE_HUD = {
+            Identifier.withDefaultNamespace("hud/heart/hardcore_full"), Identifier.withDefaultNamespace("hud/heart/hardcore_half"),
+            Identifier.withDefaultNamespace("hud/heart/container_hardcore"), Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_full"),
+            Identifier.withDefaultNamespace("hud/heart/absorbing_hardcore_half")
+    };
     private static volatile List<Style> styles = List.of(VANILLA);
 
     private HeartStyles() {}
@@ -65,6 +70,7 @@ final class HeartStyles {
         private final String name;
         private Icon[] icons;
         private TextureAtlasSprite token;
+        private boolean lastHardcore;
         private RenderType layer;
         Style(String id, String name, Icon[] icons) {
             this.id = id; this.name = name; this.icons = icons;
@@ -74,17 +80,20 @@ final class HeartStyles {
                 ? Component.translatable("heartistica.style.resource_pack") : Component.literal(name); }
         void resolve(Minecraft minecraft) {
             if (!id.equals("resource_pack")) return;
-            TextureAtlasSprite first = sprite(minecraft, HUD[0]);
-            if (first == token) return;
-            Icon[] resolved = new Icon[HUD.length];
+            boolean hardcore = minecraft.level != null && minecraft.level.getLevelData().isHardcore();
+            Identifier[] hud = hardcore ? HARDCORE_HUD : HUD;
+            TextureAtlasSprite first = sprite(minecraft, hud[0]);
+            if (first == token && hardcore == lastHardcore) return;
+            Icon[] resolved = new Icon[hud.length];
             for (int i = 0; i < resolved.length; i++) {
-                TextureAtlasSprite sprite = sprite(minecraft, HUD[i]);
+                TextureAtlasSprite sprite = sprite(minecraft, hud[i]);
                 resolved[i] = new Icon(sprite, sprite.atlasLocation(), sprite.getU0(), sprite.getV0(),
                         sprite.getU1(), sprite.getV1(), sprite.contents().width(), sprite.contents().height(), 0, 0);
             }
             icons = resolved;
             layer = RenderTypes.text(first.atlasLocation());
             token = first;
+            lastHardcore = hardcore;
         }
         private static TextureAtlasSprite sprite(Minecraft minecraft, Identifier id) {
             return minecraft.getAtlasManager().get(new SpriteId(GUI_ATLAS, id));

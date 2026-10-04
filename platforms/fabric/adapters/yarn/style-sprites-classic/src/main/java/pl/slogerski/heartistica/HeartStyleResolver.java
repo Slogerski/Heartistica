@@ -6,7 +6,7 @@ import net.minecraft.util.Identifier;
 
 final class HeartStyleResolver {
     private HeartStyleResolver() {}
-    static HeartStyles.Resolved resolve(MinecraftClient client, Identifier[] ids, Object previous) {
+    static HeartStyles.Resolved resolve(MinecraftClient client, Identifier[] ids, Object previous, boolean hardcore) {
         Sprite first = client.getGuiAtlasManager().getSprite(ids[0]);
         if (first == previous) return null;
         HeartStyles.Icon[] icons = new HeartStyles.Icon[ids.length];

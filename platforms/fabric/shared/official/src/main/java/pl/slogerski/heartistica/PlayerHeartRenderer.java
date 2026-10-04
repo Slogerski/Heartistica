@@ -28,7 +28,7 @@ final class PlayerHeartRenderer {
     private static final int FULL_BRIGHT = 0xF000F0;
     private static final int HEART_COLOR = 0xFFFF4057;
     private static final int ABSORPTION_COLOR = 0xFFFFC83D;
-    private static final float HEART_HEIGHT = 8, HEART_ADVANCE = 9, ROW_ADVANCE = 9;
+    private static final float HEART_HEIGHT = 8, ROW_ADVANCE = HEART_HEIGHT;
     private static final Map<AbstractClientPlayer, PlayerState> STATES = new IdentityHashMap<>();
     private static final List<PlayerState> SELECTED = new ArrayList<>();
     private static final PriorityQueue<PlayerState> NEAREST = new PriorityQueue<>(
@@ -100,7 +100,7 @@ final class PlayerHeartRenderer {
         HeartStyles.Style style = HeartStyles.selected();
         style.resolve(minecraft);
         float heartWidth = HEART_HEIGHT * style.icon(0).width() / style.icon(0).height();
-        float advance = Math.max(HEART_ADVANCE, heartWidth);
+        float advance = Math.max(0, heartWidth - 1);
         PoseStack pose = context.pose();
         Matrix4fc cameraRotation = new Matrix4f().rotation(camera.rotation());
         for (PlayerState state : SELECTED) {
@@ -112,7 +112,7 @@ final class PlayerHeartRenderer {
             Vec3 position = player.getPosition(partialTick);
             double anchorY = position.y + player.getBbHeight() + 0.62 + config.heightOffsetPixels / 16.0;
             int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1) / HeartDisplayState.HEARTS_PER_ROW;
-            float startX = numeric ? -(state.anchorWidth + 1 + advance) / 2 : -display.anchorSlots * advance / 2;
+            float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 : -display.anchorSlots * advance / 2;
             if (!inView(camera, cameraPos, position, anchorY)) continue;
             if (state.visibilityTick != tick || state.visibilityCamera == null
                     || state.visibilityCamera.distanceToSqr(cameraPos) > 1

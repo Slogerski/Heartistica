@@ -8,7 +8,7 @@ import net.minecraft.util.Identifier;
 final class HeartStyleResolver {
     private static final Identifier GUI_ATLAS = Identifier.of("minecraft", "textures/atlas/gui.png");
     private HeartStyleResolver() {}
-    static HeartStyles.Resolved resolve(MinecraftClient client, Identifier[] ids, Object previous) {
+    static HeartStyles.Resolved resolve(MinecraftClient client, Identifier[] ids, Object previous, boolean hardcore) {
         Sprite first = get(client, ids[0]);
         if (first == previous) return null;
         HeartStyles.Icon[] icons = new HeartStyles.Icon[ids.length];

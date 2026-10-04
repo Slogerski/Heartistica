@@ -13,8 +13,8 @@ import java.util.List;
 public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int CONTENT_HEIGHT = 376;
-    private static final int GALLERY_TOP = 202;
+    private static final int CONTENT_HEIGHT = 354;
+    private static final int GALLERY_TOP = 180;
     private final List<Placement> contentWidgets = new ArrayList<>();
     private ButtonWidget resetButton, doneButton;
     private int scroll, contentOrigin, viewportBottom;
@@ -46,16 +46,9 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
             config.numericDisplay = !config.numericDisplay;
             button.setMessage(displayModeText());
         }).dimensions(left, top + 110, panelWidth, 20).build());
-        content(toggle(left, top + 132, "heartistica.only_damaged",
-                config.onlyDamagedWithoutAbsorption, value -> {
-                    config.onlyDamagedWithoutAbsorption = value;
-                    if (value) config.onlyAbsorption = false;
-                    clearAndInit();
-                }));
-        content(toggle(left, top + 154, "heartistica.only_absorption",
+        content(toggle(left, top + 132, "heartistica.only_absorption",
                 config.onlyAbsorption, value -> {
                     config.onlyAbsorption = value;
-                    if (value) config.onlyDamagedWithoutAbsorption = false;
                     clearAndInit();
                 }));
         int selected = HeartStyles.all().indexOf(HeartStyles.selected());

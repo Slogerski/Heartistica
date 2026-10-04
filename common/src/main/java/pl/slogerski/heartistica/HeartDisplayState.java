@@ -16,6 +16,7 @@ final class HeartDisplayState {
     private boolean initialized;
     private float previousHealth, previousMax, previousAbsorption;
     private boolean previousNumeric, previousOnlyAbsorption;
+    private boolean previousShowHealth;
     private int previousFilled, previousCapacity;
     private long nextExpiry = Long.MAX_VALUE;
     int slots;
@@ -26,12 +27,14 @@ final class HeartDisplayState {
 
     boolean update(float health, float maxHealth, float absorption,
                    boolean numeric, boolean onlyAbsorption, long now) {
+        boolean showHealth = !onlyAbsorption && HeartVisibilityRules.isDamaged(health, maxHealth);
         health = finitePositive(health);
         maxHealth = finitePositive(maxHealth);
         absorption = finitePositive(absorption);
         if (initialized && health == previousHealth && maxHealth == previousMax
                 && absorption == previousAbsorption && numeric == previousNumeric
-                && onlyAbsorption == previousOnlyAbsorption && now < nextExpiry) return false;
+                && onlyAbsorption == previousOnlyAbsorption && showHealth == previousShowHealth
+                && now < nextExpiry) return false;
 
         int healthUnits = halfUnits(health);
         int filled = (healthUnits + 1) / 2;
@@ -49,6 +52,7 @@ final class HeartDisplayState {
         previousAbsorption = absorption;
         previousNumeric = numeric;
         previousOnlyAbsorption = onlyAbsorption;
+        previousShowHealth = showHealth;
         previousFilled = filled;
         previousCapacity = capacity;
         initialized = true;
@@ -58,6 +62,11 @@ final class HeartDisplayState {
         anchorSlots = Math.min(HEARTS_PER_ROW, capacity);
         goldLabel = onlyAbsorption || absorption > 0;
         if (numeric) {
+            if (!onlyAbsorption && !showHealth && absorption == 0) {
+                label = "";
+                anchorLabel = "";
+                return true;
+            }
             label = onlyAbsorption ? format(absorption) + "/?"
                     : format((double) health + absorption) + "/" + format(maxHealth);
             anchorLabel = onlyAbsorption ? "0/?" : format(maxHealth) + "/" + format(maxHealth);
@@ -67,7 +76,7 @@ final class HeartDisplayState {
         label = "";
         anchorLabel = "";
         Arrays.fill(sprites, HIDDEN);
-        if (!onlyAbsorption) {
+        if (showHealth) {
             for (int i = 0; i < capacity; i++) {
                 int remaining = healthUnits - i * 2;
                 if (remaining > 0) sprites[i] = remaining == 1 ? HALF : FULL;

@@ -41,17 +41,11 @@ final class HeartisticaConfigScreen extends Screen {
                 ? "heartistica.display.numeric" : "heartistica.display.hearts"), b -> {
             config.numericDisplay = !config.numericDisplay; rebuild();
         });
-        addButton(x, y + 132, w, toggleText("heartistica.only_damaged", config.onlyDamagedWithoutAbsorption), b -> {
-            config.onlyDamagedWithoutAbsorption = !config.onlyDamagedWithoutAbsorption;
-            if (config.onlyDamagedWithoutAbsorption) config.onlyAbsorption = false;
-            rebuild();
-        });
-        addButton(x, y + 154, w, toggleText("heartistica.only_absorption", config.onlyAbsorption), b -> {
+        addButton(x, y + 132, w, toggleText("heartistica.only_absorption", config.onlyAbsorption), b -> {
             config.onlyAbsorption = !config.onlyAbsorption;
-            if (config.onlyAbsorption) config.onlyDamagedWithoutAbsorption = false;
             rebuild();
         });
-        addButton(x, y + 176, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
+        addButton(x, y + 154, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
         int half = (w - 6) / 2;
         addButton(x, height - 28, half, Text.translatable("heartistica.reset"), b -> { config.reset(); rebuild(); });
         addButton(x + half + 6, height - 28, half, ScreenTexts.DONE, b -> close());

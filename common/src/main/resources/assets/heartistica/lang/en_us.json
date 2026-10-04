@@ -9,7 +9,6 @@
   "heartistica.height": "Height Above Head: %s px",
   "heartistica.display.hearts": "Display: Hearts",
   "heartistica.display.numeric": "Display: X/Y Text + Icon",
-  "heartistica.only_damaged": "Only Damaged (No Absorption)",
   "heartistica.only_absorption": "Only Absorption Hearts",
   "heartistica.reset": "Reset Defaults"
 }

@@ -26,7 +26,6 @@ public final class HeartisticaConfig {
     public int scalePercent = 100;
     public int heightOffsetPixels = 0;
     public boolean numericDisplay = false;
-    public boolean onlyDamagedWithoutAbsorption = false;
     public boolean onlyAbsorption = false;
     public String heartStyle = "resource_pack";
 
@@ -86,7 +85,7 @@ public final class HeartisticaConfig {
 
     boolean shouldDisplayHealth(float health, float maxHealth, float absorption) {
         return HeartVisibilityRules.matches(health, maxHealth, absorption, numericDisplay,
-                onlyAbsorption, onlyDamagedWithoutAbsorption);
+                onlyAbsorption);
     }
 
     double rangeSquared() {
@@ -102,7 +101,6 @@ public final class HeartisticaConfig {
         scalePercent = 100;
         heightOffsetPixels = 0;
         numericDisplay = false;
-        onlyDamagedWithoutAbsorption = false;
         onlyAbsorption = false;
     }
 
@@ -113,7 +111,6 @@ public final class HeartisticaConfig {
         nearestPlayers = clamp(nearestPlayers, 0, 64);
         scalePercent = clamp(scalePercent, 50, 200);
         heightOffsetPixels = clamp(heightOffsetPixels, -8, 4);
-        if (onlyAbsorption) onlyDamagedWithoutAbsorption = false;
     }
 
     private static int clamp(int value, int min, int max) {
