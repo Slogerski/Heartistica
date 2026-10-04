@@ -60,7 +60,7 @@ final class PlayerHeartRenderer {
             PlayerState state = STATES.computeIfAbsent(player, PlayerState::new);
             state.seenTick = tick; state.distanceSquared = distance;
             if (state.display.update(player.getHealth(), player.getMaxHealth(), player.getAbsorptionAmount(),
-                    config.numericDisplay, config.onlyAbsorption, now)) {
+                    config.numericDisplay, config.onlyAbsorption, config.onlyWhenDamaged, now)) {
                 state.text = Component.literal(state.display.label);
                 state.textWidth = minecraft.font.width(state.text);
                 state.anchorWidth = minecraft.font.width(state.display.anchorLabel);

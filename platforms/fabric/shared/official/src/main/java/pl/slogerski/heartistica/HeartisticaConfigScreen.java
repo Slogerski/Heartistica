@@ -16,7 +16,7 @@ import java.util.List;
 final class HeartisticaConfigScreen extends Screen {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int GALLERY_TOP = 180, CONTENT_HEIGHT = 354, VIEWPORT_TOP = 28;
+    private static final int GALLERY_TOP = 202, CONTENT_HEIGHT = 376, VIEWPORT_TOP = 28;
     private final List<Placement> content = new ArrayList<>();
     private int scroll, origin, viewportBottom;
     private Button resetButton, doneButton;
@@ -43,6 +43,10 @@ final class HeartisticaConfigScreen extends Screen {
                 ? "heartistica.display.numeric" : "heartistica.display.hearts"), b -> { config.numericDisplay = !config.numericDisplay; rebuild(); });
         add(x, y + 132, w, toggle("heartistica.only_absorption", config.onlyAbsorption), b -> {
             config.onlyAbsorption = !config.onlyAbsorption;
+            rebuild();
+        });
+        add(x, y + 154, w, toggle("heartistica.only_when_damaged", config.onlyWhenDamaged), b -> {
+            config.onlyWhenDamaged = !config.onlyWhenDamaged;
             rebuild();
         });
         initGallery();

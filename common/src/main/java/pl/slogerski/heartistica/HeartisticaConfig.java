@@ -27,6 +27,7 @@ public final class HeartisticaConfig {
     public int heightOffsetPixels = 0;
     public boolean numericDisplay = false;
     public boolean onlyAbsorption = false;
+    public boolean onlyWhenDamaged = true;
     public String heartStyle = "resource_pack";
 
     static HeartisticaConfig load() {
@@ -85,7 +86,7 @@ public final class HeartisticaConfig {
 
     boolean shouldDisplayHealth(float health, float maxHealth, float absorption) {
         return HeartVisibilityRules.matches(health, maxHealth, absorption, numericDisplay,
-                onlyAbsorption);
+                onlyAbsorption, onlyWhenDamaged);
     }
 
     double rangeSquared() {
@@ -102,6 +103,7 @@ public final class HeartisticaConfig {
         heightOffsetPixels = 0;
         numericDisplay = false;
         onlyAbsorption = false;
+        onlyWhenDamaged = true;
     }
 
     private void sanitize() {

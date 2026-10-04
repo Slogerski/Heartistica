@@ -13,8 +13,8 @@ import java.util.List;
 public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int CONTENT_HEIGHT = 354;
-    private static final int GALLERY_TOP = 180;
+    private static final int CONTENT_HEIGHT = 376;
+    private static final int GALLERY_TOP = 202;
     private final List<Placement> contentWidgets = new ArrayList<>();
     private ButtonWidget resetButton, doneButton;
     private int scroll, contentOrigin, viewportBottom;
@@ -51,6 +51,8 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
                     config.onlyAbsorption = value;
                     clearAndInit();
                 }));
+        content(toggle(left, top + 154, "heartistica.only_when_damaged",
+                config.onlyWhenDamaged, value -> config.onlyWhenDamaged = value));
         int selected = HeartStyles.all().indexOf(HeartStyles.selected());
         ButtonWidget previous = content(ButtonWidget.builder(Text.literal("←"), button -> selectStyle(-1))
                 .dimensions(width / 2 - 64, GALLERY_TOP + 136, 24, 20).build());

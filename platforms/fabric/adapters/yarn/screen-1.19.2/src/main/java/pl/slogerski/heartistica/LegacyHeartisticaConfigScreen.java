@@ -45,7 +45,11 @@ final class HeartisticaConfigScreen extends Screen {
             config.onlyAbsorption = !config.onlyAbsorption;
             rebuild();
         });
-        addButton(x, y + 154, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
+        addButton(x, y + 154, w, toggleText("heartistica.only_when_damaged", config.onlyWhenDamaged), b -> {
+            config.onlyWhenDamaged = !config.onlyWhenDamaged;
+            rebuild();
+        });
+        addButton(x, y + 176, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
         int half = (w - 6) / 2;
         addButton(x, height - 28, half, Text.translatable("heartistica.reset"), b -> { config.reset(); rebuild(); });
         addButton(x + half + 6, height - 28, half, ScreenTexts.DONE, b -> close());

@@ -4,9 +4,9 @@ final class HeartVisibilityRules {
     private HeartVisibilityRules() {}
 
     static boolean matches(float health, float maxHealth, float absorption, boolean numeric,
-                           boolean onlyAbsorption) {
+                           boolean onlyAbsorption, boolean onlyWhenDamaged) {
         if (onlyAbsorption) return numeric || HeartDisplayState.finitePositive(absorption) > 0;
-        return isDamaged(health, maxHealth) || HeartDisplayState.finitePositive(absorption) > 0;
+        return !onlyWhenDamaged || isDamaged(health, maxHealth) || HeartDisplayState.finitePositive(absorption) > 0;
     }
 
     static boolean isDamaged(float health, float maxHealth) {

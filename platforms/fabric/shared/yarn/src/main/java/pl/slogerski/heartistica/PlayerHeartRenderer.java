@@ -77,7 +77,7 @@ final class PlayerHeartRenderer {
             state.seenTick = tick;
             state.distanceSquared = distance;
             if (state.display.update(player.getHealth(), player.getMaxHealth(), player.getAbsorptionAmount(),
-                    config.numericDisplay, config.onlyAbsorption, now)) {
+                    config.numericDisplay, config.onlyAbsorption, config.onlyWhenDamaged, now)) {
                 state.text = Text.literal(state.display.label);
                 state.textWidth = client.textRenderer.getWidth(state.text);
                 state.anchorWidth = client.textRenderer.getWidth(state.display.anchorLabel);

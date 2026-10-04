@@ -26,8 +26,8 @@ final class HeartDisplayState {
     boolean goldLabel;
 
     boolean update(float health, float maxHealth, float absorption,
-                   boolean numeric, boolean onlyAbsorption, long now) {
-        boolean showHealth = !onlyAbsorption && HeartVisibilityRules.isDamaged(health, maxHealth);
+                   boolean numeric, boolean onlyAbsorption, boolean onlyWhenDamaged, long now) {
+        boolean showHealth = !onlyAbsorption && (!onlyWhenDamaged || HeartVisibilityRules.isDamaged(health, maxHealth));
         health = finitePositive(health);
         maxHealth = finitePositive(maxHealth);
         absorption = finitePositive(absorption);
