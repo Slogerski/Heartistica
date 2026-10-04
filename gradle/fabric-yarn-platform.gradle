@@ -1,0 +1,84 @@
+def spec = gradle.ext.heartisticaVersionManifest.versions.find { it.project == project.name }
+if (spec == null || spec.status != "active" || spec.mappingType != "yarn") {
+    throw new GradleException("Invalid Yarn platform ${project.path}")
+}
+def minecraftVersion = spec.minecraft ?: spec.gameVersions.last()
+def minecraftRequirement = spec.gameVersions.size() == 1 ? spec.gameVersions.first()
+        : ">=${spec.gameVersions.first()} <=${spec.gameVersions.last()}"
+group = rootProject.group
+version = rootProject.version
+base { archivesName = "heartistica-mc${spec.id}-fabric" }
+repositories {
+    maven { url = "https://maven.terraformersmc.com/releases/" }
+}
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(Math.max(spec.java as Integer, 21)) }
+    withSourcesJar()
+}
+sourceSets.main {
+    java.srcDir(rootProject.file("common/src/main/java"))
+    java.srcDir(rootProject.file("platforms/fabric/shared/yarn/src/main/java"))
+    if (spec.id == "1.19.2") {
+        java.exclude("**/HeartisticaConfigScreen.java")
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/screen-1.19.2/src/main/java"))
+    }
+    if (spec.id == "1.19.2") {
+    } else if (spec.id == "1.20.1") {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/preview-texture/src/main/java"))
+    } else if (spec.id in ["1.20.6", "1.21.1"]) {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/preview-legacy/src/main/java"))
+    } else if (spec.id in ["1.21.6", "1.21.8", "1.21.10", "1.21.11"]) {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/preview-pipeline/src/main/java"))
+    } else {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/preview-function/src/main/java"))
+    }
+    java.srcDir(rootProject.file(spec.id in ["1.19.2", "1.20.1", "1.20.6"]
+            ? "platforms/fabric/adapters/yarn/render-bufferbuilder/src/main/java"
+            : "platforms/fabric/adapters/yarn/render-current/src/main/java"))
+    if (spec.id in ["1.21.10", "1.21.11"]) {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/world-modern/src/main/java"))
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/style-sprites-atlas/src/main/java"))
+        java.srcDir(rootProject.file(spec.id == "1.21.11"
+                ? "platforms/fabric/adapters/yarn/camera-camera-pos/src/main/java"
+                : "platforms/fabric/adapters/yarn/camera-pos/src/main/java"))
+    } else {
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/world-classic/src/main/java"))
+        java.srcDir(rootProject.file(spec.id in ["1.19.2", "1.20.1"]
+                ? "platforms/fabric/adapters/yarn/style-icons/src/main/java"
+                : "platforms/fabric/adapters/yarn/style-sprites-classic/src/main/java"))
+        def worldTickFamily = spec.id in ["1.19.2", "1.20.1", "1.20.6"] ? "world-tick-legacy"
+                : (spec.id in ["1.21.1", "1.21.2-1.21.4"] ? "world-tick-delta" : "world-tick-progress")
+        java.srcDir(rootProject.file("platforms/fabric/adapters/yarn/${worldTickFamily}/src/main/java"))
+    }
+    java.srcDir(rootProject.file(spec.id == "1.21.11"
+            ? "platforms/fabric/adapters/yarn/layer-text/src/main/java"
+            : "platforms/fabric/adapters/yarn/layer-get-text/src/main/java"))
+    java.srcDir(rootProject.file(spec.id == "1.19.2"
+            ? "platforms/fabric/adapters/yarn/text-legacy/src/main/java"
+            : "platforms/fabric/adapters/yarn/text-layer/src/main/java"))
+    if (spec.id != "1.19.2") java.srcDir(rootProject.file(spec.id == "1.20.1"
+            ? "platforms/fabric/adapters/yarn/screen-1.20.1/src/main/java"
+            : "platforms/fabric/adapters/yarn/screen-modern/src/main/java"))
+    resources.srcDir(rootProject.file("common/src/main/resources"))
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${minecraftVersion}"
+    mappings "net.fabricmc:yarn:${spec.yarn}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${spec.fabricLoader}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${spec.fabricApi}"
+    modCompileOnly("com.terraformersmc:modmenu:${spec.modMenu}") { transitive = false }
+}
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = "UTF-8"
+    options.release.set(spec.java as Integer)
+}
+processResources {
+    dependsOn rootProject.tasks.named("generateHeartAtlas")
+    from(rootProject.layout.buildDirectory.dir("generated/heart-assets"))
+    inputs.properties("version":project.version, "minecraft_requirement":minecraftRequirement,
+            "java_version":spec.java, "fabric_loader":spec.fabricLoader)
+    filesMatching("fabric.mod.json") {
+        expand("version":project.version, "minecraft_requirement":minecraftRequirement,
+                "java_version":spec.java, "fabric_loader":spec.fabricLoader)
+    }
+}

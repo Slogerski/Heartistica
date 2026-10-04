@@ -1,0 +1,11 @@
+[
+  {
+    "id": "heartistica",
+    "name": "Heartistica",
+    "full": "heart.png",
+    "half": "heart_half.png",
+    "empty": "heart_empty.png",
+    "absorptionFull": "heart_absorption.png",
+    "absorptionHalf": "heart_absorption_half.png"
+  }
+]

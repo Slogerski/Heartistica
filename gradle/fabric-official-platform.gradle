@@ -1,0 +1,39 @@
+def spec = gradle.ext.heartisticaVersionManifest.versions.find { it.project == project.name }
+if (spec == null || spec.status != "active" || spec.mappingType != "official") {
+    throw new GradleException("Invalid official platform ${project.path}")
+}
+group = rootProject.group
+version = rootProject.version
+base { archivesName = "heartistica-mc${spec.id}-fabric" }
+repositories {
+    maven { url = "https://maven.terraformersmc.com/releases/" }
+}
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(spec.java as Integer) }
+    sourceCompatibility = JavaVersion.toVersion(spec.java)
+    targetCompatibility = JavaVersion.toVersion(spec.java)
+    withSourcesJar()
+}
+sourceSets.main {
+    java.srcDir(rootProject.file("common/src/main/java"))
+    java.srcDir(rootProject.file("platforms/fabric/shared/official/src/main/java"))
+    java.srcDir(rootProject.file("platforms/fabric/adapters/official/${spec.id}/src/main/java"))
+    resources.srcDir(rootProject.file("common/src/main/resources"))
+}
+dependencies {
+    minecraft "com.mojang:minecraft:${spec.minecraft}"
+    implementation "net.fabricmc:fabric-loader:${spec.fabricLoader}"
+    implementation "net.fabricmc.fabric-api:fabric-api:${spec.fabricApi}"
+    compileOnly("com.terraformersmc:modmenu:${spec.modMenu}") { transitive = false }
+}
+tasks.withType(JavaCompile).configureEach { options.encoding = "UTF-8" }
+processResources {
+    dependsOn rootProject.tasks.named("generateHeartAtlas")
+    from(rootProject.layout.buildDirectory.dir("generated/heart-assets"))
+    inputs.properties("version":project.version, "minecraft_requirement":spec.gameVersions.first(),
+            "java_version":spec.java, "fabric_loader":spec.fabricLoader)
+    filesMatching("fabric.mod.json") {
+        expand("version":project.version, "minecraft_requirement":spec.gameVersions.first(),
+                "java_version":spec.java, "fabric_loader":spec.fabricLoader)
+    }
+}

@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "heartistica",
+  "version": "${version}",
+  "name": "Heartistica",
+  "description": "Player health indicators with resource pack support, absorption hearts, a numeric display, and adjustable range, size, and position.",
+  "authors": ["Slogerski"],
+  "license": "All Rights Reserved",
+  "icon": "assets/heartistica/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["pl.slogerski.heartistica.HeartisticaClient"],
+    "modmenu": ["pl.slogerski.heartistica.ModMenuIntegration"]
+  },
+  "depends": {
+    "fabricloader": ">=${fabric_loader}",
+    "minecraft": "${minecraft_requirement}",
+    "java": ">=${java_version}",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

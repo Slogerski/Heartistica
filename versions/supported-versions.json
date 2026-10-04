@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "loader": "fabric",
+  "versions": [
+    {"id":"1.19.2","project":"fabric-1.19.2","directory":"platforms/fabric/versions/1.19.2","gameVersions":["1.19.2"],"java":17,"fabricLoader":"0.14.9","mappingType":"yarn","yarn":"1.19.2+build.28","fabricApi":"0.77.0+1.19.2","modMenu":"4.1.2","artifactTask":"remapJar","status":"active"},
+    {"id":"1.20.1","project":"fabric-1.20.1","directory":"platforms/fabric/versions/1.20.1","gameVersions":["1.20.1"],"java":17,"fabricLoader":"0.16.10","mappingType":"yarn","yarn":"1.20.1+build.10","fabricApi":"0.92.11+1.20.1","modMenu":"7.2.2","artifactTask":"remapJar","status":"active"},
+    {"id":"1.20.6","project":"fabric-1.20.6","directory":"platforms/fabric/versions/1.20.6","gameVersions":["1.20.6"],"java":21,"fabricLoader":"0.15.6","mappingType":"yarn","yarn":"1.20.6+build.3","fabricApi":"0.100.8+1.20.6","modMenu":"10.0.0","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.1","project":"fabric-1.21.1","directory":"platforms/fabric/versions/1.21.1","gameVersions":["1.21.1"],"java":21,"fabricLoader":"0.15.11","mappingType":"yarn","yarn":"1.21.1+build.3","fabricApi":"0.116.14+1.21.1","modMenu":"11.0.4","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.2-1.21.4","project":"fabric-1.21.4","directory":"platforms/fabric/versions/1.21.4","gameVersions":["1.21.2","1.21.3","1.21.4"],"minecraft":"1.21.4","java":21,"fabricLoader":"0.16.9","mappingType":"yarn","yarn":"1.21.4+build.8","fabricApi":"0.119.4+1.21.4","modMenu":"13.0.3","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.5","project":"fabric-1.21.5","directory":"platforms/fabric/versions/1.21.5","gameVersions":["1.21.5"],"java":21,"fabricLoader":"0.16.10","mappingType":"yarn","yarn":"1.21.5+build.1","fabricApi":"0.128.2+1.21.5","modMenu":"14.0.2","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.6","project":"fabric-1.21.6","directory":"platforms/fabric/versions/1.21.6","gameVersions":["1.21.6"],"java":21,"fabricLoader":"0.16.13","mappingType":"yarn","yarn":"1.21.6+build.1","fabricApi":"0.128.2+1.21.6","modMenu":"15.0.2","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.8","project":"fabric-1.21.8","directory":"platforms/fabric/versions/1.21.8","gameVersions":["1.21.8"],"java":21,"fabricLoader":"0.16.13","mappingType":"yarn","yarn":"1.21.8+build.1","fabricApi":"0.136.1+1.21.8","modMenu":"15.0.2","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.10","project":"fabric-1.21.10","directory":"platforms/fabric/versions/1.21.10","gameVersions":["1.21.10"],"java":21,"fabricLoader":"0.17.0","mappingType":"yarn","yarn":"1.21.10+build.3","fabricApi":"0.138.4+1.21.10","modMenu":"16.0.1","artifactTask":"remapJar","status":"active"},
+    {"id":"1.21.11","project":"fabric-1.21.11","directory":"platforms/fabric/versions/1.21.11","gameVersions":["1.21.11"],"java":21,"fabricLoader":"0.17.3","mappingType":"yarn","yarn":"1.21.11+build.6","fabricApi":"0.141.5+1.21.11","modMenu":"17.0.0","artifactTask":"remapJar","status":"active"},
+    {"id":"26.1.2","project":"fabric-26.1.2","directory":"platforms/fabric/versions/26.1.2","gameVersions":["26.1.2"],"minecraft":"26.1.2","java":25,"fabricLoader":"0.18.4","mappingType":"official","fabricApi":"0.153.0+26.1.2","modMenu":"18.0.0","artifactTask":"jar","status":"active"},
+    {"id":"26.2","project":"fabric-26.2","directory":"platforms/fabric/versions/26.2","gameVersions":["26.2"],"minecraft":"26.2","java":25,"fabricLoader":"0.18.4","mappingType":"official","fabricApi":"0.154.2+26.2","modMenu":"20.0.1","artifactTask":"jar","status":"active"},
+    {"id":"26.3","project":"fabric-26.3","directory":"platforms/fabric/versions/26.3","gameVersions":["26.3"],"minecraft":"26.3","java":25,"fabricLoader":"0.19.5","mappingType":"official","fabricApi":"0.161.0+26.3","modMenu":"21.0.0","artifactTask":"jar","status":"active"}
+  ]
+}

@@ -1,0 +1,120 @@
+plugins {
+    id "java"
+    id "fabric-loom" version "1.17.12" apply false
+    id "net.fabricmc.fabric-loom" version "1.17.12" apply false
+}
+
+version = mod_version
+group = mod_group_id
+
+subprojects {
+    tasks.withType(Jar).configureEach {
+        from(rootProject.file("LICENSE"))
+    }
+}
+
+def requestedMinecraft = providers.gradleProperty("target_mc").orNull
+def activeVersionSpecs = gradle.ext.heartisticaVersionManifest.versions.findAll {
+    it.status == "active" && (requestedMinecraft == null || it.id == requestedMinecraft)
+}
+
+sourceSets {
+    main { java.setSrcDirs([]); resources.setSrcDirs([]) }
+    heartLogicTest {
+        java.srcDirs("common/src/main/java", "common/src/test/java")
+        java.include("pl/slogerski/heartistica/HeartDisplayState.java")
+        java.include("pl/slogerski/heartistica/HeartVisibilityRules.java")
+        java.include("pl/slogerski/heartistica/HeartisticaConfig.java")
+        java.include("pl/slogerski/heartistica/HeartDisplayStateTest.java")
+    }
+}
+
+dependencies {
+    heartLogicTestImplementation "com.google.code.gson:gson:2.11.0"
+    heartLogicTestImplementation "net.fabricmc:fabric-loader:0.16.9"
+}
+
+tasks.register("verifyHeartLogic", JavaExec) {
+    dependsOn(tasks.named("heartLogicTestClasses"))
+    classpath = sourceSets.heartLogicTest.runtimeClasspath
+    mainClass = "pl.slogerski.heartistica.HeartDisplayStateTest"
+}
+
+def generatedHeartAssets = layout.buildDirectory.dir('generated/heart-assets')
+
+tasks.register('generateHeartAtlas') {
+    inputs.file('heart-packs.json')
+    inputs.dir('common/src/main/resources/assets/heartistica/textures/gui')
+    outputs.dir(generatedHeartAssets)
+    doLast {
+        def packs = new groovy.json.JsonSlurper().parse(file('heart-packs.json'))
+        def definitions = []
+        def ids = new HashSet()
+        packs.each { pack ->
+            if (!(pack.id ==~ /[a-z0-9_-]+/) || pack.id == 'resource_pack' || !ids.add(pack.id)) {
+                throw new GradleException("Invalid or duplicate heart pack id: ${pack.id}")
+            }
+            def readSprite = { name ->
+                def root = file('common/src/main/resources/assets/heartistica/textures/gui').canonicalFile
+                def source = new File(root, name.toString()).canonicalFile
+                if (!source.toPath().startsWith(root.toPath())) throw new GradleException('Sprite outside texture directory')
+                def image = javax.imageio.ImageIO.read(source)
+                if (image == null || image.width > 1024 || image.height > 1024) throw new GradleException("Invalid sprite ${name}")
+                image
+            }
+            def sprites = [readSprite(pack.full), readSprite(pack.half), readSprite(pack.empty)]
+            int w = sprites[0].width, h = sprites[0].height
+            def tint = { source, boolean half ->
+                def image = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+                for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+                    int pixel = source.getRGB(x, y)
+                    if (half && (x >= (w + 1) / 2 || pixel == sprites[2].getRGB(x, y))) {
+                        image.setRGB(x, y, pixel)
+                    } else {
+                        double light = Math.max((pixel >>> 16) & 255, Math.max((pixel >>> 8) & 255, pixel & 255)) / 255.0
+                        int r = (int) (105 + 150 * light), g = (int) (55 + 165 * light), b = (int) (5 + 55 * light)
+                        image.setRGB(x, y, (int) ((pixel & 0xFF000000L) | (r << 16) | (g << 8) | b))
+                    }
+                }
+                image
+            }
+            if (sprites.any { it.width != w || it.height != h }) throw new GradleException("Mismatched heart sizes in ${pack.id}")
+            sprites.add(pack.absorptionFull ? readSprite(pack.absorptionFull) : tint(sprites[0], false))
+            sprites.add(pack.absorptionHalf ? readSprite(pack.absorptionHalf) : tint(sprites[1], true))
+            if (sprites.any { it.width != w || it.height != h }) throw new GradleException("Mismatched absorption sizes in ${pack.id}")
+            int atlasWidth = Integer.highestOneBit((w + 2) * 5 - 1) << 1
+            int atlasHeight = Integer.highestOneBit(h + 1) << 1
+            def atlas = new java.awt.image.BufferedImage(atlasWidth, atlasHeight, java.awt.image.BufferedImage.TYPE_INT_ARGB)
+            sprites.eachWithIndex { sprite, index ->
+                atlas.setRGB(index * (w + 2) + 1, 1, w, h, sprite.getRGB(0, 0, w, h, null, 0, w), 0, w)
+            }
+            def atlasName = "textures/gui/${pack.id}_atlas.png"
+            def target = generatedHeartAssets.get().file("assets/heartistica/${atlasName}").asFile
+            target.parentFile.mkdirs()
+            javax.imageio.ImageIO.write(atlas, 'png', target)
+            definitions.add([id:pack.id, name:pack.name, texture:"heartistica:${atlasName}",
+                             width:w, height:h, atlasWidth:atlasWidth, atlasHeight:atlasHeight])
+        }
+        def manifest = generatedHeartAssets.get().file('assets/heartistica/heart_styles.json').asFile
+        manifest.parentFile.mkdirs()
+        manifest.setText(groovy.json.JsonOutput.toJson(definitions), 'UTF-8')
+    }
+}
+
+tasks.register("buildAll") {
+    group = "build"
+    dependsOn(tasks.named("verifyHeartLogic"))
+    dependsOn(activeVersionSpecs.collect { ":${it.project}:build" })
+}
+
+tasks.register("assembleReleaseArtifacts", Sync) {
+    group = "distribution"
+    dependsOn(activeVersionSpecs.collect { ":${it.project}:${it.artifactTask}" })
+    into(layout.buildDirectory.dir("release"))
+    activeVersionSpecs.each { spec ->
+        from(project(":${spec.project}").layout.buildDirectory.dir("libs")) {
+            include("*-${mod_version}.jar")
+            exclude("*-dev.jar", "*-sources.jar")
+        }
+    }
+}

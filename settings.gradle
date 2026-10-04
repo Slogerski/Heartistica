@@ -1,0 +1,34 @@
+import groovy.json.JsonSlurper
+
+pluginManagement {
+    repositories {
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.terraformersmc.com/releases/" }
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_PROJECT)
+    repositories {
+        maven { url = "https://maven.fabricmc.net/" }
+        maven { url = "https://maven.terraformersmc.com/releases/" }
+        mavenCentral()
+    }
+}
+
+rootProject.name = "Heartistica"
+def manifest = new JsonSlurper().parse(file("versions/supported-versions.json"))
+gradle.ext.heartisticaVersionManifest = manifest
+def requestedMinecraft = gradle.startParameter.projectProperties["target_mc"]
+def selectedVersions = manifest.versions.findAll {
+    it.status == "active" && (requestedMinecraft == null || it.id == requestedMinecraft)
+}
+if (requestedMinecraft != null && selectedVersions.isEmpty()) {
+    throw new GradleException("Unknown or inactive target_mc: ${requestedMinecraft}")
+}
+selectedVersions.each { spec ->
+    include(":${spec.project}")
+    project(":${spec.project}").projectDir = file(spec.directory as String)
+}
