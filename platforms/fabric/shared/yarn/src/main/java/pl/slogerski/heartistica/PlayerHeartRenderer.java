@@ -41,7 +41,15 @@ final class PlayerHeartRenderer {
 
     static void register() {
         ClientTickEvents.END_CLIENT_TICK.register(PlayerHeartRenderer::update);
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clear());
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            var entry = client.getCurrentServerEntry();
+            HeartisticaClient.profiles().useServer(entry == null ? null : entry.address);
+            clear();
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            HeartisticaClient.profiles().useServer(null);
+            clear();
+        });
         HeartWorldRender.register(PlayerHeartRenderer::render);
     }
 
@@ -138,7 +146,7 @@ final class PlayerHeartRenderer {
                 boolean numeric = !display.label.isEmpty();
                 if (!numeric && display.slots == 0) continue;
                 Vec3d position = player.getLerpedPos(tickDelta);
-                double anchorY = position.y + player.getHeight() + 0.62 + config.heightOffsetPixels / 16.0;
+                double anchorY = position.y + player.getHeight() + config.heightAboveHead();
                 int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1)
                         / HeartDisplayState.HEARTS_PER_ROW;
                 float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 - 1
@@ -237,7 +245,8 @@ final class PlayerHeartRenderer {
         long seenTick, visibilityTick = -1;
         double distanceSquared;
         Text text = Text.empty();
-        int textWidth, anchorWidth, visibilityHeight, visibilityScale;
+        int textWidth, anchorWidth, visibilityScale;
+        double visibilityHeight;
         Vec3d visibilityCamera, visibilityPosition;
         boolean visible;
 

@@ -144,6 +144,7 @@ public final class HeartDisplayStateTest {
         s.update(20, 20, 4, false, true, false, 10);
         check(s.slots == 2 && s.sprites[0] == HeartDisplayState.GOLD, "absorption-only overrides disabled damage filter");
         verifyConfiguration();
+        verifyServerProfiles();
         System.out.println("Heart display regression checks passed: " + assertions);
     }
 
@@ -153,6 +154,15 @@ public final class HeartDisplayStateTest {
         try {
             HeartisticaConfig config = HeartisticaConfig.load(file);
             check(config.onlyWhenDamaged, "damage filter is enabled by default");
+            check(config.heightOffsetPixels == 4, "default height is plus four pixels");
+            config.heightOffsetPixels = 0;
+            check(Math.abs(config.heightAboveHead() - (0.62 + 2 / 16.0)) < 1e-9, "zero height includes two-pixel base offset");
+            config.heightOffsetPixels = 2;
+            check(Math.abs(config.heightAboveHead() - (0.62 + 4 / 16.0)) < 1e-9, "two-pixel setting matches previous four-pixel height");
+            config.heightOffsetPixels = -8;
+            check(Math.abs(config.heightAboveHead() - (0.62 - 6 / 16.0)) < 1e-9, "minimum height uses shifted base");
+            config.heightOffsetPixels = 8;
+            check(Math.abs(config.heightAboveHead() - (0.62 + 10 / 16.0)) < 1e-9, "maximum height uses shifted base");
             Files.writeString(file, "{\"configVersion\":2,\"onlyWhenDamaged\":false}");
             check(!HeartisticaConfig.load(file).onlyWhenDamaged, "explicitly disabled damage filter is retained");
             check(config.enabled && config.range == 48 && config.nearestPlayers == 0, "missing config enables mod by default");
@@ -160,12 +170,15 @@ public final class HeartDisplayStateTest {
             check(HeartisticaConfig.load(file).range == 48, "unversioned legacy config migrates");
             Files.writeString(file, "{\"range\":15,\"configVersion\":2}");
             check(HeartisticaConfig.load(file).range == 15, "current intentional range is retained");
+            check(HeartisticaConfig.load(file).heightOffsetPixels == 4, "missing height uses plus four pixels");
+            Files.writeString(file, "{\"configVersion\":3,\"heightOffsetPixels\":0}");
+            check(HeartisticaConfig.load(file).heightOffsetPixels == 0, "saved height is not overwritten by new default");
             check(HeartisticaConfig.load(file).onlyWhenDamaged, "existing config without damage filter enables it");
             Files.writeString(file, "{\"range\":999,\"nearestPlayers\":-1,\"scalePercent\":1,\"heightOffsetPixels\":100,"
                     + "\"heartStyle\":\"../invalid\",\"onlyAbsorption\":true,\"onlyDamagedWithoutAbsorption\":true}");
             config = HeartisticaConfig.load(file);
             check(config.range == 128 && config.nearestPlayers == 0 && config.scalePercent == 50
-                    && config.heightOffsetPixels == 4, "out-of-range config values are bounded");
+                    && config.heightOffsetPixels == 8, "out-of-range config values are bounded");
             check(config.heartStyle.equals("resource_pack") && config.onlyAbsorption,
                     "invalid style is sanitized and legacy filter is ignored");
             config.range = 0;
@@ -182,8 +195,9 @@ public final class HeartDisplayStateTest {
                 check(files.count() == 1, "successful atomic save leaves no temporary files");
             }
             config.reset();
+            check(config.heightOffsetPixels == 4, "reset restores plus four pixel height");
             check(config.onlyWhenDamaged, "reset enables damage filter");
-            check(config.configVersion == 2 && config.range == 48 && !config.onlyAbsorption,
+            check(config.configVersion == 3 && config.range == 48 && !config.onlyAbsorption,
                     "reset restores version and defaults");
         } finally {
             Files.deleteIfExists(file);
@@ -194,5 +208,97 @@ public final class HeartDisplayStateTest {
     private static void check(boolean condition, String message) {
         assertions++;
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static void verifyServerProfiles() throws Exception {
+        Path directory = Files.createTempDirectory("heartistica-profiles-test-");
+        Path defaultsPath = directory.resolve("settings.json");
+        Path profilesPath = directory.resolve("servers.json");
+        Path backupPath = directory.resolve("servers.json.bak");
+        try {
+            HeartisticaConfig config = new HeartisticaConfig();
+            config.heightOffsetPixels = 0.5;
+            config.save(defaultsPath);
+            check(HeartisticaConfig.load(defaultsPath).heightOffsetPixels == 0.5, "half-pixel height survives default save");
+            check(HeartisticaConfig.heightText(0.5).equals("+0.5")
+                    && HeartisticaConfig.heightText(-0.5).equals("-0.5")
+                    && HeartisticaConfig.heightText(0).equals("0"), "height labels support signed half pixels");
+            config.heightOffsetPixels = 0.74;
+            config.sanitize();
+            check(config.heightOffsetPixels == 0.5, "height is snapped to half-pixel steps");
+            config.heightOffsetPixels = Double.NaN;
+            config.sanitize();
+            check(config.heightOffsetPixels == 4, "non-finite height uses default");
+            config.heightOffsetPixels = -100;
+            config.sanitize();
+            check(config.heightOffsetPixels == -8, "height cannot fall below minus eight pixels");
+            config.heightOffsetPixels = 100;
+            config.sanitize();
+            check(config.heightOffsetPixels == 8, "height cannot exceed eight pixels");
+            config.heightOffsetPixels = 0.5;
+            ServerProfiles profiles = new ServerProfiles(config, defaultsPath, profilesPath);
+            check(!profiles.canSave() && !profiles.canRestore(), "server buttons are disabled outside multiplayer");
+            profiles.useServer("EXAMPLE.COM:25565");
+            check(profiles.canSave() && !profiles.hasProfile(), "connected server can create a profile");
+            config.heightOffsetPixels = 2.5;
+            config.nearestPlayers = 3;
+            check(profiles.saveForServer(), "server profile can be saved");
+            check(profiles.hasProfile() && profiles.canRestore(), "saved server profile can be removed");
+            check(HeartisticaConfig.load(defaultsPath).heightOffsetPixels == 0.5, "saving server profile leaves global defaults unchanged");
+            check(com.google.gson.JsonParser.parseString(Files.readString(profilesPath)).getAsJsonObject()
+                    .get("schemaVersion").getAsInt() == 1, "server profiles contain a schema version");
+            profiles.useServer("other.example");
+            check(config.heightOffsetPixels == 0.5 && config.nearestPlayers == 0, "unrelated server uses global defaults");
+            profiles.useServer("example.com");
+            check(config.heightOffsetPixels == 2.5 && config.nearestPlayers == 3, "default-port server identity restores all settings");
+            config.heightOffsetPixels = 3.5;
+            profiles.saveCurrent();
+            check(Files.isRegularFile(backupPath), "updating a profile retains a backup");
+            profiles.useServer(null);
+            check(config.heightOffsetPixels == 0.5, "disconnect restores global defaults");
+            config = HeartisticaConfig.load(defaultsPath);
+            profiles = new ServerProfiles(config, defaultsPath, profilesPath);
+            profiles.useServer("example.com");
+            check(config.heightOffsetPixels == 3.5 && config.nearestPlayers == 3, "server settings survive restart");
+            profiles.useServer("example.com:25566");
+            check(config.heightOffsetPixels == 0.5 && !profiles.hasProfile(), "custom port has a separate server identity");
+            profiles.useServer("example.com");
+            check(profiles.backToDefault(), "server override can be removed");
+            check(config.heightOffsetPixels == 0.5 && config.nearestPlayers == 0 && !profiles.hasProfile(),
+                    "back to default restores personal defaults and removes override");
+            profiles.useServer("other.example");
+            profiles.useServer("example.com");
+            check(config.heightOffsetPixels == 0.5, "removed override does not return on reconnect");
+            config.heightOffsetPixels = -1.5;
+            check(profiles.saveForServer(), "new profile can be created after removal");
+            config.heightOffsetPixels = -2.5;
+            check(profiles.saveForServer(), "updated profile can be backed up");
+            Files.writeString(profilesPath, "{broken");
+            config = HeartisticaConfig.load(defaultsPath);
+            profiles = new ServerProfiles(config, defaultsPath, profilesPath);
+            profiles.useServer("example.com");
+            check(config.heightOffsetPixels == -1.5, "corrupt profile file recovers previous valid backup");
+            config.heightOffsetPixels = -3.5;
+            check(profiles.saveForServer(), "recovered profile can be saved without replacing its good backup");
+            check(Files.readString(backupPath).contains("-1.5"), "good backup survives recovery save");
+            String future = "{\"schemaVersion\":999,\"servers\":{}}";
+            Files.writeString(profilesPath, future);
+            profiles = new ServerProfiles(config, defaultsPath, profilesPath);
+            profiles.useServer("example.com");
+            check(!profiles.canSave() && !profiles.saveForServer(), "unsupported schema blocks profile writes");
+            check(Files.readString(profilesPath).equals(future), "unsupported schema file is left unchanged");
+            check(ServerProfiles.serverKey(" Example.COM.:25565 ").equals("example.com"), "server keys normalize case and default port");
+            check(ServerProfiles.serverKey("[::1]:25565").equals("[::1]"), "IPv6 default port is normalized");
+            check(ServerProfiles.serverKey("../../escape") == null && ServerProfiles.serverKey("host\nname") == null,
+                    "invalid server identities are rejected");
+            try (var files = Files.list(directory)) {
+                check(files.count() == 3, "profile saves leave no temporary files");
+            }
+        } finally {
+            Files.deleteIfExists(defaultsPath);
+            Files.deleteIfExists(profilesPath);
+            Files.deleteIfExists(backupPath);
+            Files.deleteIfExists(directory);
+        }
     }
 }

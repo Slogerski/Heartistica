@@ -39,7 +39,15 @@ final class PlayerHeartRenderer {
     private PlayerHeartRenderer() {}
     static void register() {
         ClientTickEvents.END_CLIENT_TICK.register(PlayerHeartRenderer::update);
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> clear());
+        ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
+            var entry = client.getCurrentServer();
+            HeartisticaClient.profiles().useServer(entry == null ? null : entry.ip);
+            clear();
+        });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            HeartisticaClient.profiles().useServer(null);
+            clear();
+        });
         OfficialWorldRender.register(PlayerHeartRenderer::render);
     }
     private static void clear() { STATES.clear(); SELECTED.clear(); NEAREST.clear(); level = null; }
@@ -110,7 +118,7 @@ final class PlayerHeartRenderer {
             boolean numeric = !display.label.isEmpty();
             if (!numeric && display.slots == 0) continue;
             Vec3 position = player.getPosition(partialTick);
-            double anchorY = position.y + player.getBbHeight() + 0.62 + config.heightOffsetPixels / 16.0;
+            double anchorY = position.y + player.getBbHeight() + config.heightAboveHead();
             int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1) / HeartDisplayState.HEARTS_PER_ROW;
             float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 - 1
                     : display.iconStartX(heartWidth, advance);
@@ -185,7 +193,8 @@ final class PlayerHeartRenderer {
     private static final class PlayerState {
         final AbstractClientPlayer player; final HeartDisplayState display = new HeartDisplayState();
         long seenTick, visibilityTick = -1; double distanceSquared;
-        Component text = Component.empty(); int textWidth, anchorWidth, visibilityHeight, visibilityScale;
+        Component text = Component.empty(); int textWidth, anchorWidth, visibilityScale;
+        double visibilityHeight;
         Vec3 visibilityCamera, visibilityPosition; boolean visible;
         PlayerState(AbstractClientPlayer player) { this.player = player; }
     }

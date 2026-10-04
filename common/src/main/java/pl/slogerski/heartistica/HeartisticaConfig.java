@@ -16,15 +16,16 @@ import java.nio.file.StandardCopyOption;
 
 public final class HeartisticaConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final int CURRENT_VERSION = 2;
+    private static final int CURRENT_VERSION = 3;
+    private static final double DEFAULT_HEIGHT = 4;
     private static final System.Logger LOGGER = System.getLogger("Heartistica");
 
-    public int configVersion = 2;
+    public int configVersion = 3;
     public boolean enabled = true;
     public int range = 48;
     public int nearestPlayers = 0;
     public int scalePercent = 100;
-    public int heightOffsetPixels = 0;
+    public double heightOffsetPixels = DEFAULT_HEIGHT;
     public boolean numericDisplay = false;
     public boolean onlyAbsorption = false;
     public boolean onlyWhenDamaged = true;
@@ -40,7 +41,7 @@ public final class HeartisticaConfig {
             JsonObject data = JsonParser.parseReader(reader).getAsJsonObject();
             HeartisticaConfig loaded = GSON.fromJson(data, HeartisticaConfig.class);
             int storedVersion = data.has("configVersion") ? data.get("configVersion").getAsInt() : 1;
-            if (storedVersion < CURRENT_VERSION) {
+            if (storedVersion < 2) {
                 if (loaded.range == 15) loaded.range = 48;
             }
             loaded.sanitize();
@@ -93,6 +94,10 @@ public final class HeartisticaConfig {
         return range == 0 ? Double.POSITIVE_INFINITY : (double) range * range;
     }
 
+    double heightAboveHead() {
+        return 0.62 + (heightOffsetPixels + 2) / 16.0;
+    }
+
     public void reset() {
         configVersion = CURRENT_VERSION;
         heartStyle = "resource_pack";
@@ -100,19 +105,44 @@ public final class HeartisticaConfig {
         range = 48;
         nearestPlayers = 0;
         scalePercent = 100;
-        heightOffsetPixels = 0;
+        heightOffsetPixels = DEFAULT_HEIGHT;
         numericDisplay = false;
         onlyAbsorption = false;
         onlyWhenDamaged = true;
     }
 
-    private void sanitize() {
+    HeartisticaConfig copy() {
+        HeartisticaConfig copy = new HeartisticaConfig();
+        copy.copyFrom(this);
+        return copy;
+    }
+
+    void copyFrom(HeartisticaConfig source) {
+        enabled = source.enabled;
+        range = source.range;
+        nearestPlayers = source.nearestPlayers;
+        scalePercent = source.scalePercent;
+        heightOffsetPixels = source.heightOffsetPixels;
+        numericDisplay = source.numericDisplay;
+        onlyAbsorption = source.onlyAbsorption;
+        onlyWhenDamaged = source.onlyWhenDamaged;
+        heartStyle = source.heartStyle;
+        sanitize();
+    }
+
+    static String heightText(double height) {
+        String value = java.math.BigDecimal.valueOf(height).stripTrailingZeros().toPlainString();
+        return height > 0 ? "+" + value : value;
+    }
+
+    void sanitize() {
         if (heartStyle == null || !heartStyle.matches("[a-z0-9_-]+")) heartStyle = "resource_pack";
         configVersion = CURRENT_VERSION;
         range = clamp(range, 0, 128);
         nearestPlayers = clamp(nearestPlayers, 0, 64);
         scalePercent = clamp(scalePercent, 50, 200);
-        heightOffsetPixels = clamp(heightOffsetPixels, -8, 4);
+        heightOffsetPixels = Double.isFinite(heightOffsetPixels)
+                ? Math.round(Math.max(-8, Math.min(8, heightOffsetPixels)) * 2) / 2.0 : DEFAULT_HEIGHT;
     }
 
     private static int clamp(int value, int min, int max) {

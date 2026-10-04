@@ -11,5 +11,8 @@
   "heartistica.display.numeric": "Display: X/Y Text + Icon",
   "heartistica.only_absorption": "Only Absorption Hearts",
   "heartistica.only_when_damaged": "Only When Damaged",
+  "heartistica.save_server": "Save For This Server",
+  "heartistica.back_default": "Back To Default",
+  "heartistica.save_failed": "Save Failed",
   "heartistica.reset": "Reset Defaults"
 }

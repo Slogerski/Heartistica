@@ -25,6 +25,7 @@ sourceSets {
         java.include("pl/slogerski/heartistica/HeartDisplayState.java")
         java.include("pl/slogerski/heartistica/HeartVisibilityRules.java")
         java.include("pl/slogerski/heartistica/HeartisticaConfig.java")
+        java.include("pl/slogerski/heartistica/ServerProfiles.java")
         java.include("pl/slogerski/heartistica/HeartDisplayStateTest.java")
     }
 }

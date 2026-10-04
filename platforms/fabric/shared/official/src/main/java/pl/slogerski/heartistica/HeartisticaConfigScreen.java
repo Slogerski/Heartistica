@@ -16,7 +16,7 @@ import java.util.List;
 final class HeartisticaConfigScreen extends Screen {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int GALLERY_TOP = 202, CONTENT_HEIGHT = 376, VIEWPORT_TOP = 28;
+    private static final int GALLERY_TOP = 224, CONTENT_HEIGHT = 398, VIEWPORT_TOP = 28;
     private final List<Placement> content = new ArrayList<>();
     private int scroll, origin, viewportBottom;
     private Button resetButton, doneButton;
@@ -38,7 +38,8 @@ final class HeartisticaConfigScreen extends Screen {
         content(new IntSlider(x, y + 22, w, "heartistica.range", config.range, 0, 128, true, v -> config.range = v));
         content(new IntSlider(x, y + 44, w, "heartistica.nearest", config.nearestPlayers, 0, 64, true, v -> config.nearestPlayers = v));
         content(new IntSlider(x, y + 66, w, "heartistica.scale", config.scalePercent, 50, 200, false, v -> config.scalePercent = v));
-        content(new IntSlider(x, y + 88, w, "heartistica.height", config.heightOffsetPixels, -8, 4, false, v -> config.heightOffsetPixels = v));
+        content(new IntSlider(x, y + 88, w, "heartistica.height", (int) Math.round(config.heightOffsetPixels * 2), -16, 16, false,
+                v -> config.heightOffsetPixels = v / 2.0));
         add(x, y + 110, w, Component.translatable(config.numericDisplay
                 ? "heartistica.display.numeric" : "heartistica.display.hearts"), b -> { config.numericDisplay = !config.numericDisplay; rebuild(); });
         add(x, y + 132, w, toggle("heartistica.only_absorption", config.onlyAbsorption), b -> {
@@ -49,8 +50,18 @@ final class HeartisticaConfigScreen extends Screen {
             config.onlyWhenDamaged = !config.onlyWhenDamaged;
             rebuild();
         });
-        initGallery();
         int half = (w - 6) / 2;
+        Button saveProfile = add(x, y + 176, half, Component.translatable("heartistica.save_server"), b -> {
+            if (HeartisticaClient.profiles().saveForServer()) rebuild();
+            else b.setMessage(Component.translatable("heartistica.save_failed"));
+        });
+        Button restoreDefault = add(x + half + 6, y + 176, half, Component.translatable("heartistica.back_default"), b -> {
+            if (HeartisticaClient.profiles().backToDefault()) rebuild();
+            else b.setMessage(Component.translatable("heartistica.save_failed"));
+        });
+        saveProfile.active = HeartisticaClient.profiles().canSave();
+        restoreDefault.active = HeartisticaClient.profiles().canRestore();
+        initGallery();
         resetButton = addRenderableWidget(Button.builder(Component.translatable("heartistica.reset"), b -> { config.reset(); rebuild(); })
                 .pos(x, height - 28).size(half, 20).build());
         doneButton = addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
@@ -160,7 +171,7 @@ final class HeartisticaConfigScreen extends Screen {
                 icon.width(), icon.height(), icon.atlasWidth(), icon.atlasHeight());
     }
 
-    @Override public void onClose() { config.save(); minecraft.setScreenAndShow(parent); }
+    @Override public void onClose() { HeartisticaClient.profiles().saveCurrent(); minecraft.setScreenAndShow(parent); }
 
     @FunctionalInterface private interface IntSetter { void set(int value); }
     private static final class IntSlider extends AbstractSliderButton {
@@ -172,7 +183,9 @@ final class HeartisticaConfigScreen extends Screen {
         private int current() { return min + (int)Math.round(value * (max - min)); }
         @Override protected void updateMessage() {
             int value = current();
-            setMessage(Component.translatable(key, zeroOff && value == 0 ? CommonComponents.OPTION_OFF : value));
+            Object shown = zeroOff && value == 0 ? CommonComponents.OPTION_OFF
+                    : "heartistica.height".equals(key) ? HeartisticaConfig.heightText(value / 2.0) : value;
+            setMessage(Component.translatable(key, shown));
         }
         @Override protected void applyValue() { setter.set(current()); }
     }

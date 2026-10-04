@@ -13,8 +13,8 @@ import java.util.List;
 public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int CONTENT_HEIGHT = 376;
-    private static final int GALLERY_TOP = 202;
+    private static final int CONTENT_HEIGHT = 398;
+    private static final int GALLERY_TOP = 224;
     private final List<Placement> contentWidgets = new ArrayList<>();
     private ButtonWidget resetButton, doneButton;
     private int scroll, contentOrigin, viewportBottom;
@@ -41,7 +41,7 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
         content(new IntSlider(left, top + 66, panelWidth, "heartistica.scale",
                 config.scalePercent, 50, 200, false, value -> config.scalePercent = value));
         content(new IntSlider(left, top + 88, panelWidth, "heartistica.height",
-                config.heightOffsetPixels, -8, 4, false, value -> config.heightOffsetPixels = value));
+                (int) Math.round(config.heightOffsetPixels * 2), -16, 16, false, value -> config.heightOffsetPixels = value / 2.0));
         content(ButtonWidget.builder(displayModeText(), button -> {
             config.numericDisplay = !config.numericDisplay;
             button.setMessage(displayModeText());
@@ -54,6 +54,17 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
         content(toggle(left, top + 154, "heartistica.only_when_damaged",
                 config.onlyWhenDamaged, value -> config.onlyWhenDamaged = value));
         int selected = HeartStyles.all().indexOf(HeartStyles.selected());
+        int profileWidth = (panelWidth - 6) / 2;
+        ButtonWidget saveProfile = content(ButtonWidget.builder(Text.translatable("heartistica.save_server"), button -> {
+            if (HeartisticaClient.profiles().saveForServer()) clearAndInit();
+            else button.setMessage(Text.translatable("heartistica.save_failed"));
+        }).dimensions(left, top + 176, profileWidth, 20).build());
+        ButtonWidget restoreDefault = content(ButtonWidget.builder(Text.translatable("heartistica.back_default"), button -> {
+            if (HeartisticaClient.profiles().backToDefault()) clearAndInit();
+            else button.setMessage(Text.translatable("heartistica.save_failed"));
+        }).dimensions(left + profileWidth + 6, top + 176, profileWidth, 20).build());
+        saveProfile.active = HeartisticaClient.profiles().canSave();
+        restoreDefault.active = HeartisticaClient.profiles().canRestore();
         ButtonWidget previous = content(ButtonWidget.builder(Text.literal("←"), button -> selectStyle(-1))
                 .dimensions(width / 2 - 64, GALLERY_TOP + 136, 24, 20).build());
         ButtonWidget next = content(ButtonWidget.builder(Text.literal("→"), button -> selectStyle(1))
@@ -127,7 +138,7 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
 
     @Override
     public void close() {
-        config.save();
+        HeartisticaClient.profiles().saveCurrent();
         if (client != null) client.setScreen(parent);
     }
 
@@ -210,8 +221,7 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
         }
 
         private Object signedValue(int current) {
-            if (!"heartistica.height".equals(key) || current <= 0) return current;
-            return "+" + current;
+            return "heartistica.height".equals(key) ? HeartisticaConfig.heightText(current / 2.0) : current;
         }
     }
 }

@@ -4,15 +4,22 @@ import com.mojang.blaze3d.systems.RenderSystem;
 import net.minecraft.client.gui.DrawableHelper;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.gui.widget.ClickableWidget;
 import net.minecraft.client.gui.widget.SliderWidget;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.screen.ScreenTexts;
 import net.minecraft.text.Text;
+import java.util.ArrayList;
+import java.util.List;
 
 final class HeartisticaConfigScreen extends Screen {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
     private boolean gallery;
+    private boolean settingsContent;
+    private int scroll;
+    private final List<Placement> content = new ArrayList<>();
+    private record Placement(ClickableWidget widget, int y) {}
 
     HeartisticaConfigScreen(Screen parent) {
         super(Text.translatable("heartistica.title"));
@@ -21,22 +28,24 @@ final class HeartisticaConfigScreen extends Screen {
 
     @Override protected void init() {
         super.init();
+        content.clear();
         if (gallery) initGallery(); else initSettings();
     }
 
     private void initSettings() {
-        int w = Math.min(310, width - 24), x = (width - w) / 2, y = 28;
+        settingsContent = true;
+        int w = Math.min(310, width - 24), x = (width - w) / 2, y = 0;
         addButton(x, y, w, toggleText("heartistica.enabled", config.enabled), b -> {
             config.enabled = !config.enabled; rebuild();
         });
-        addDrawableChild(new IntSlider(x, y + 22, w, "heartistica.range", config.range, 0, 128, true,
+        setting(new IntSlider(x, y + 22, w, "heartistica.range", config.range, 0, 128, true,
                 value -> config.range = value));
-        addDrawableChild(new IntSlider(x, y + 44, w, "heartistica.nearest", config.nearestPlayers, 0, 64, true,
+        setting(new IntSlider(x, y + 44, w, "heartistica.nearest", config.nearestPlayers, 0, 64, true,
                 value -> config.nearestPlayers = value));
-        addDrawableChild(new IntSlider(x, y + 66, w, "heartistica.scale", config.scalePercent, 50, 200, false,
+        setting(new IntSlider(x, y + 66, w, "heartistica.scale", config.scalePercent, 50, 200, false,
                 value -> config.scalePercent = value));
-        addDrawableChild(new IntSlider(x, y + 88, w, "heartistica.height", config.heightOffsetPixels, -8, 4, false,
-                value -> config.heightOffsetPixels = value));
+        setting(new IntSlider(x, y + 88, w, "heartistica.height", (int) Math.round(config.heightOffsetPixels * 2), -16, 16, false,
+                value -> config.heightOffsetPixels = value / 2.0));
         addButton(x, y + 110, w, Text.translatable(config.numericDisplay
                 ? "heartistica.display.numeric" : "heartistica.display.hearts"), b -> {
             config.numericDisplay = !config.numericDisplay; rebuild();
@@ -49,10 +58,22 @@ final class HeartisticaConfigScreen extends Screen {
             config.onlyWhenDamaged = !config.onlyWhenDamaged;
             rebuild();
         });
-        addButton(x, y + 176, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
         int half = (w - 6) / 2;
+        ButtonWidget saveProfile = addButton(x, y + 176, half, Text.translatable("heartistica.save_server"), b -> {
+            if (HeartisticaClient.profiles().saveForServer()) rebuild();
+            else b.setMessage(Text.translatable("heartistica.save_failed"));
+        });
+        ButtonWidget restoreDefault = addButton(x + half + 6, y + 176, half, Text.translatable("heartistica.back_default"), b -> {
+            if (HeartisticaClient.profiles().backToDefault()) rebuild();
+            else b.setMessage(Text.translatable("heartistica.save_failed"));
+        });
+        saveProfile.active = HeartisticaClient.profiles().canSave();
+        restoreDefault.active = HeartisticaClient.profiles().canRestore();
+        addButton(x, y + 198, w, Text.translatable("heartistica.gallery"), b -> { gallery = true; rebuild(); });
+        settingsContent = false;
         addButton(x, height - 28, half, Text.translatable("heartistica.reset"), b -> { config.reset(); rebuild(); });
         addButton(x + half + 6, height - 28, half, ScreenTexts.DONE, b -> close());
+        positionContent();
     }
 
     private void initGallery() {
@@ -65,7 +86,28 @@ final class HeartisticaConfigScreen extends Screen {
     }
 
     private ButtonWidget addButton(int x, int y, int w, Text text, ButtonWidget.PressAction action) {
-        return addDrawableChild(new ButtonWidget(x, y, w, 20, text, action));
+        ButtonWidget button = new ButtonWidget(x, y, w, 20, text, action);
+        return settingsContent ? setting(button) : addDrawableChild(button);
+    }
+
+    private <T extends ClickableWidget> T setting(T widget) {
+        content.add(new Placement(widget, widget.y));
+        return addDrawableChild(widget);
+    }
+
+    private void positionContent() {
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, 220 - (height - 64))));
+        for (Placement placement : content) {
+            placement.widget.y = 28 + placement.y - scroll;
+            placement.widget.visible = placement.widget.y >= 28 && placement.widget.y + 20 <= height - 36;
+        }
+    }
+
+    @Override public boolean mouseScrolled(double x, double y, double amount) {
+        if (gallery) return super.mouseScrolled(x, y, amount);
+        scroll -= (int) Math.round(amount * 22);
+        positionContent();
+        return true;
     }
 
     private void select(int direction) {
@@ -109,7 +151,7 @@ final class HeartisticaConfigScreen extends Screen {
     }
 
     @Override public void close() {
-        config.save();
+        HeartisticaClient.profiles().saveCurrent();
         if (client != null) client.setScreen(parent);
     }
 
@@ -128,7 +170,8 @@ final class HeartisticaConfigScreen extends Screen {
         private int current() { return min + (int) Math.round(value * (max - min)); }
         @Override protected void updateMessage() {
             int current = current();
-            Object shown = zeroIsOff && current == 0 ? ScreenTexts.OFF : current;
+            Object shown = zeroIsOff && current == 0 ? ScreenTexts.OFF
+                    : "heartistica.height".equals(key) ? HeartisticaConfig.heightText(current / 2.0) : current;
             setMessage(Text.translatable(key, shown));
         }
         @Override protected void applyValue() { setter.set(current()); }
