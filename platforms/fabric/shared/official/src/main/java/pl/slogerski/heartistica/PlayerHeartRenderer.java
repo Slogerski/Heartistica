@@ -112,7 +112,8 @@ final class PlayerHeartRenderer {
             Vec3 position = player.getPosition(partialTick);
             double anchorY = position.y + player.getBbHeight() + 0.62 + config.heightOffsetPixels / 16.0;
             int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1) / HeartDisplayState.HEARTS_PER_ROW;
-            float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 : -display.anchorSlots * advance / 2;
+            float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 - 1
+                    : display.iconStartX(heartWidth, advance);
             if (!inView(camera, cameraPos, position, anchorY)) continue;
             if (state.visibilityTick != tick || state.visibilityCamera == null
                     || state.visibilityCamera.distanceToSqr(cameraPos) > 1

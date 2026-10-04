@@ -73,6 +73,11 @@ public final class HeartDisplayStateTest {
         check(s.slots == 40, "increasing maximum does not invent upper empty-heart timers");
 
         check(HeartVisibilityRules.matches(15, 20, 0, false, false), "damage remains visible");
+        check(!HeartVisibilityRules.matches(19.9F, 20, 0, false, false), "minor damage is hidden");
+        check(!HeartVisibilityRules.matches(19.01F, 20, 0, false, false), "damage below half a heart is hidden");
+        check(HeartVisibilityRules.matches(19, 20, 0, false, false), "exactly half a heart of damage is visible");
+        check(!HeartVisibilityRules.matches(99.5F, 100, 0, false, false), "custom maximum uses the same half-heart threshold");
+        check(HeartVisibilityRules.matches(19.9F, 20, 2, false, false), "minor damage does not hide absorption");
         check(!HeartVisibilityRules.matches(20, 20, 0, false, false), "full health without absorption is hidden");
         check(HeartVisibilityRules.matches(15, 20, 4, false, false), "damage and absorption remain visible together");
         check(HeartVisibilityRules.matches(20, 20, 4, false, false), "absorption remains visible at full health");
@@ -102,6 +107,26 @@ public final class HeartDisplayStateTest {
         check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD, "unknown normal health does not hide valid absorption");
         s.update(15, 20, 0, true, false, 7);
         check(s.label.equals("15/20") && !s.goldLabel, "damage restores red numeric health");
+        s.update(19.9F, 20, 0, false, false, 8);
+        check(s.slots == 0, "minor damage hides normal icons");
+        s.update(19, 20, 0, false, false, 9);
+        check(s.slots == 10 && s.sprites[9] == HeartDisplayState.HALF, "half-heart threshold restores icons");
+        s.update(19.5F, 20, 0, true, false, 10);
+        check(s.label.isEmpty(), "minor damage hides numeric health too");
+        s.update(19.5F, 20, 2, false, false, 11);
+        check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD, "minor damage displays only absorption icons");
+        s = new HeartDisplayState();
+        s.update(9, 10, 4, false, false, 0);
+        check(s.slots == 7 && s.iconStartX(8, 7) == -26, "mixed single row is centered one pixel left");
+        check(s.iconStartX(16, 15) == -54, "custom sprite width keeps single row centered");
+        s.update(19, 20, 0, false, false, 1);
+        check(s.iconStartX(8, 7) == -36.5F, "complete single row is centered one pixel left");
+        s.update(19, 20, 4, false, false, 2);
+        check(s.slots == 12 && s.iconStartX(8, 7) == -36, "multiple rows retain their previous anchor one pixel left");
+        s.update(20, 20, 4, false, false, 3);
+        check(s.slots == 2 && s.iconStartX(8, 7) == -8.5F, "gold-only single row is centered one pixel left");
+        s.update(20, 20, 1, false, false, 4);
+        check(s.iconStartX(8, 7) == -5, "single half heart is centered one pixel left");
         verifyConfiguration();
         System.out.println("Heart display regression checks passed: " + assertions);
     }

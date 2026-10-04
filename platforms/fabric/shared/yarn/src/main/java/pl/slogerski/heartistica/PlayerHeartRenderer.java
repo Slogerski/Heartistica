@@ -141,8 +141,8 @@ final class PlayerHeartRenderer {
                 double anchorY = position.y + player.getHeight() + 0.62 + config.heightOffsetPixels / 16.0;
                 int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1)
                         / HeartDisplayState.HEARTS_PER_ROW;
-                float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2
-                        : -display.anchorSlots * heartAdvance / 2;
+                float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 - 1
+                        : display.iconStartX(heartWidth, heartAdvance);
                 float width = numeric ? state.textWidth + 1 + heartWidth
                         : (Math.min(display.slots, HeartDisplayState.HEARTS_PER_ROW) - 1) * heartAdvance + heartWidth;
                 double radius = Math.hypot(Math.max(Math.abs(startX), Math.abs(startX + width)),

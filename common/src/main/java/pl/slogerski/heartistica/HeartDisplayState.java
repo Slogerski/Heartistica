@@ -92,6 +92,11 @@ final class HeartDisplayState {
         return true;
     }
 
+    float iconStartX(float heartWidth, float advance) {
+        if (slots <= HEARTS_PER_ROW) return -((Math.max(1, slots) - 1) * advance + heartWidth) / 2 - 1;
+        return -anchorSlots * advance / 2 - 1;
+    }
+
     static float finitePositive(float value) {
         return Float.isFinite(value) && value > 0 ? value : 0;
     }

@@ -10,6 +10,6 @@ final class HeartVisibilityRules {
     }
 
     static boolean isDamaged(float health, float maxHealth) {
-        return Float.isFinite(health) && Float.isFinite(maxHealth) && health > 0 && health < maxHealth;
+        return Float.isFinite(health) && Float.isFinite(maxHealth) && health > 0 && maxHealth - health >= 1;
     }
 }
