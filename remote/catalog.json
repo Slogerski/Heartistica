@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "event": { "id": "none" },
+  "categories": {
+    "Event": [],
+    "Popular": ["resource_pack", "heartistica"]
+  }
+}
