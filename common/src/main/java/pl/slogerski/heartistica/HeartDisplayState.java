@@ -92,6 +92,10 @@ final class HeartDisplayState {
         return true;
     }
 
+    static float iconAdvance(float heartWidth, int textureWidth) {
+        return Math.max(0, heartWidth - (textureWidth == 16 ? 0.5F : 1));
+    }
+
     float iconStartX(float heartWidth, float advance) {
         if (slots <= HEARTS_PER_ROW) return -((Math.max(1, slots) - 1) * advance + heartWidth) / 2 - 1;
         return -anchorSlots * advance / 2 - 1;

@@ -1,191 +1,156 @@
 package pl.slogerski.heartistica;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
-import net.minecraft.client.gui.components.AbstractSliderButton;
+import net.minecraft.client.input.MouseButtonEvent;
+import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.AbstractWidget;
-import net.minecraft.client.input.MouseButtonEvent;
-import net.minecraft.client.input.KeyEvent;
-import net.minecraft.client.gui.screens.Screen;
-import net.minecraft.client.renderer.RenderPipelines;
-import net.minecraft.network.chat.CommonComponents;
+import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.network.chat.Component;
 import java.util.ArrayList;
 import java.util.List;
 
-final class HeartisticaConfigScreen extends Screen {
+public final class HeartisticaConfigScreen extends Screen {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
-    private static final int GALLERY_TOP = 224, CONTENT_HEIGHT = 398, VIEWPORT_TOP = 28;
-    private final List<Placement> content = new ArrayList<>();
-    private int scroll, origin, viewportBottom;
-    private Button resetButton, doneButton;
-    private record Placement(AbstractWidget widget, int y) {}
+    private final CatalogView catalog = new CatalogView(HeartisticaClient.catalog(), config);
+    private static final int CONTENT_HEIGHT = 328, GALLERY_TOP = 248;
+    private final List<Placement> contentWidgets = new ArrayList<>();
+    private Button resetButton, doneButton, eventButton, catalogButton;
+    private int scroll, contentOrigin, viewportBottom;
+    private boolean catalogMode;
+    private String displayedLanguage;
 
-    HeartisticaConfigScreen(Screen parent) { super(Component.translatable("heartistica.title")); this.parent = parent; }
+    public HeartisticaConfigScreen(Screen parent) { super(HeartText.text("heartistica.title")); this.parent = parent; }
 
     @Override protected void init() {
-        super.init();
-        content.clear();
-        viewportBottom = Math.max(VIEWPORT_TOP + 1, height - 36);
-        initSettings();
+        displayedLanguage = config.language;
+        contentWidgets.clear();
+        viewportBottom = Math.max(29, height - (catalogMode ? 36 : 60));
+        catalog.release();
+        int panelWidth = Math.min(310, width - 24), left = (width - panelWidth) / 2, half = (panelWidth - 6) / 2;
+        if (catalogMode) {
+            resetButton = addRenderableWidget(Button.builder(HeartText.text("heartistica.catalog.restore"), button -> {
+                CatalogService.restore(config); rebuildWidgets();
+            }).bounds(left, 30, half, 20).build());
+            eventButton = addRenderableWidget(Button.builder(HeartText.events(), button -> {
+                HeartisticaClient.catalog().toggleEvents(config); rebuildWidgets();
+            }).bounds(left + half + 6, 30, half, 20).build());
+            doneButton = addRenderableWidget(Button.builder(HeartText.text("heartistica.back"), button -> {
+                catalogMode = false; rebuildWidgets();
+            }).bounds(width / 2 - 75, height - 28, 150, 20).build());
+            return;
+        }
+        content(toggle(left, 0, "heartistica.enabled", config.enabled, value -> config.enabled = value));
+        eventButton = content(Button.builder(HeartText.events(), button -> {
+            HeartisticaClient.catalog().toggleEvents(config); rebuildWidgets();
+        }).bounds(left, 22, panelWidth, 20).build());
+        content(new IntSlider(left, 44, panelWidth, "heartistica.range", config.range, 0, 128, true, value -> config.range = value));
+        content(new IntSlider(left, 66, panelWidth, "heartistica.nearest", config.nearestPlayers, 0, 64, true, value -> config.nearestPlayers = value));
+        content(new IntSlider(left, 88, panelWidth, "heartistica.scale", config.scalePercent, 50, 200, false, value -> config.scalePercent = value));
+        content(new IntSlider(left, 110, panelWidth, "heartistica.height", (int) Math.round(config.heightOffsetPixels * 2), -16, 16, false,
+                value -> config.heightOffsetPixels = value / 2.0));
+        content(Button.builder(HeartText.text(config.numericDisplay ? "heartistica.display.numeric" : "heartistica.display.hearts"), button -> {
+            config.numericDisplay = !config.numericDisplay; rebuildWidgets();
+        }).bounds(left, 132, panelWidth, 20).build());
+        content(toggle(left, 154, "heartistica.only_absorption", config.onlyAbsorption, value -> config.onlyAbsorption = value));
+        content(toggle(left, 176, "heartistica.only_when_damaged", config.onlyWhenDamaged, value -> config.onlyWhenDamaged = value));
+        Button save = content(Button.builder(HeartText.text("heartistica.save_server"), button -> {
+            if (HeartisticaClient.profiles().saveForServer()) rebuildWidgets();
+            else button.setMessage(HeartText.text("heartistica.save_failed"));
+        }).bounds(left, 198, half, 20).build());
+        Button restore = content(Button.builder(HeartText.text("heartistica.back_default"), button -> {
+            if (HeartisticaClient.profiles().backToDefault()) rebuildWidgets();
+            else button.setMessage(HeartText.text("heartistica.save_failed"));
+        }).bounds(left + half + 6, 198, half, 20).build());
+        save.active = HeartisticaClient.profiles().canSave();
+        restore.active = HeartisticaClient.profiles().canRestore();
+        content(Button.builder(HeartText.language(), button -> {
+            HeartisticaClient.changeLanguage(); rebuildWidgets();
+        }).bounds(left, 220, panelWidth, 20).build());
+        catalogButton = addRenderableWidget(Button.builder(HeartText.text("heartistica.catalog.open"), button -> {
+            catalogMode = true; rebuildWidgets();
+        }).bounds(left, height - 52, panelWidth, 20).build());
+        resetButton = addRenderableWidget(Button.builder(HeartText.text("heartistica.reset"), button -> {
+            HeartisticaClient.resetConfig(); rebuildWidgets();
+        }).bounds(left, height - 28, half, 20).build());
+        doneButton = addRenderableWidget(Button.builder(HeartText.text("heartistica.done"), button -> onClose())
+                .bounds(left + half + 6, height - 28, half, 20).build());
         positionContent();
     }
 
-    private void initSettings() {
-        int w = Math.min(310, width - 24), x = (width - w) / 2, y = 0;
-        add(x, y, w, toggle("heartistica.enabled", config.enabled), b -> { config.enabled = !config.enabled; rebuild(); });
-        content(new IntSlider(x, y + 22, w, "heartistica.range", config.range, 0, 128, true, v -> config.range = v));
-        content(new IntSlider(x, y + 44, w, "heartistica.nearest", config.nearestPlayers, 0, 64, true, v -> config.nearestPlayers = v));
-        content(new IntSlider(x, y + 66, w, "heartistica.scale", config.scalePercent, 50, 200, false, v -> config.scalePercent = v));
-        content(new IntSlider(x, y + 88, w, "heartistica.height", (int) Math.round(config.heightOffsetPixels * 2), -16, 16, false,
-                v -> config.heightOffsetPixels = v / 2.0));
-        add(x, y + 110, w, Component.translatable(config.numericDisplay
-                ? "heartistica.display.numeric" : "heartistica.display.hearts"), b -> { config.numericDisplay = !config.numericDisplay; rebuild(); });
-        add(x, y + 132, w, toggle("heartistica.only_absorption", config.onlyAbsorption), b -> {
-            config.onlyAbsorption = !config.onlyAbsorption;
-            rebuild();
-        });
-        add(x, y + 154, w, toggle("heartistica.only_when_damaged", config.onlyWhenDamaged), b -> {
-            config.onlyWhenDamaged = !config.onlyWhenDamaged;
-            rebuild();
-        });
-        int half = (w - 6) / 2;
-        Button saveProfile = add(x, y + 176, half, Component.translatable("heartistica.save_server"), b -> {
-            if (HeartisticaClient.profiles().saveForServer()) rebuild();
-            else b.setMessage(Component.translatable("heartistica.save_failed"));
-        });
-        Button restoreDefault = add(x + half + 6, y + 176, half, Component.translatable("heartistica.back_default"), b -> {
-            if (HeartisticaClient.profiles().backToDefault()) rebuild();
-            else b.setMessage(Component.translatable("heartistica.save_failed"));
-        });
-        saveProfile.active = HeartisticaClient.profiles().canSave();
-        restoreDefault.active = HeartisticaClient.profiles().canRestore();
-        initGallery();
-        resetButton = addRenderableWidget(Button.builder(Component.translatable("heartistica.reset"), b -> { config.reset(); rebuild(); })
-                .pos(x, height - 28).size(half, 20).build());
-        doneButton = addRenderableWidget(Button.builder(CommonComponents.GUI_DONE, b -> onClose())
-                .pos(x + half + 6, height - 28).size(half, 20).build());
-    }
-
-    private void initGallery() {
-        int selected = HeartStyles.all().indexOf(HeartStyles.selected());
-        Button previous = add(width / 2 - 64, GALLERY_TOP + 136, 24, Component.literal("←"), b -> select(-1));
-        Button next = add(width / 2 + 40, GALLERY_TOP + 136, 24, Component.literal("→"), b -> select(1));
-        previous.active = selected > 0;
-        next.active = selected < HeartStyles.all().size() - 1;
-    }
-
-    private Button add(int x, int y, int w, Component message, Button.OnPress press) {
-        return content(Button.builder(message, press).pos(x, y).size(w, 20).build());
-    }
     private <T extends AbstractWidget> T content(T widget) {
-        content.add(new Placement(widget, widget.getY()));
+        contentWidgets.add(new Placement(widget, widget.getY()));
         return addRenderableWidget(widget);
     }
-    private int maxScroll() { return Math.max(0, CONTENT_HEIGHT - (viewportBottom - VIEWPORT_TOP)); }
     private void positionContent() {
-        scroll = Math.max(0, Math.min(maxScroll(), scroll));
-        origin = VIEWPORT_TOP + Math.max(0, (viewportBottom - VIEWPORT_TOP - CONTENT_HEIGHT) / 2) - scroll;
-        for (Placement placement : content) {
-            placement.widget.setY(origin + placement.y);
-            placement.widget.visible = placement.widget.getY() + placement.widget.getHeight() > VIEWPORT_TOP
-                    && placement.widget.getY() < viewportBottom;
+        scroll = Math.max(0, Math.min(scroll, Math.max(0, CONTENT_HEIGHT - (viewportBottom - 28))));
+        contentOrigin = 28 + Math.max(0, (viewportBottom - 28 - CONTENT_HEIGHT) / 2) - scroll;
+        for (Placement placement : contentWidgets) {
+            placement.widget.setY(contentOrigin + placement.y);
+            placement.widget.visible = placement.widget.getY() >= 28 && placement.widget.getY() + 20 <= viewportBottom;
         }
     }
     @Override public boolean mouseScrolled(double x, double y, double horizontal, double vertical) {
-        scroll -= (int)Math.round(vertical * 24);
-        positionContent();
+        if (catalog.scrolling(x, y, horizontal, vertical)) return true;
+        if (!catalogMode) { scroll -= (int) Math.round(vertical * 24); positionContent(); }
         return true;
     }
     @Override public boolean mouseClicked(MouseButtonEvent event, boolean doubleClick) {
-        if (event.y() < VIEWPORT_TOP) return false;
-        if (event.y() >= viewportBottom) {
-            for (Button button : new Button[]{resetButton, doneButton}) {
-                if (button.mouseClicked(event, doubleClick)) { setFocused(button); return true; }
-            }
-            return false;
+        double x = event.x(), y = event.y();
+        int button = event.button();
+        String before = config.heartStyle;
+        boolean events = HeartisticaClient.catalog().eventsEnabled(config);
+        boolean handled = catalog.click(x, y, button, InputConstants.MOUSE_BUTTON_LEFT);
+        if (handled && (!before.equals(config.heartStyle) || events != HeartisticaClient.catalog().eventsEnabled(config))) rebuildWidgets();
+        return handled || super.mouseClicked(event, doubleClick);
+    }
+    @Override public boolean mouseDragged(MouseButtonEvent event, double dx, double dy) { return catalog.drag(event.x()) || super.mouseDragged(event, dx, dy); }
+    @Override public boolean mouseReleased(MouseButtonEvent event) { return catalog.release() || super.mouseReleased(event); }
+    private record Placement(AbstractWidget widget, int y) {}
+    private Button toggle(int x, int y, String key, boolean initial, BoolSetter setter) {
+        return Button.builder(HeartText.toggle(key, initial), button -> { setter.set(!initial); rebuildWidgets(); })
+                .bounds(x, y, Math.min(310, width - 24), 20).build();
+    }
+    @Override public void onClose() { HeartisticaClient.profiles().saveCurrent(); if (minecraft != null) minecraft.setScreenAndShow(parent); }
+
+    @Override public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
+        if (!config.language.equals(displayedLanguage)) rebuildWidgets();
+        eventButton.setMessage(HeartText.events());
+        context.fill(0, 0, width, height, 0xE00B0E14);
+        if (catalogMode) {
+            int top = CatalogView.top(height);
+            catalog.render(new HeartCatalogCanvas(context, minecraft), width, top + 2, top, viewportBottom, true);
+            eventButton.extractRenderState(context, mouseX, mouseY, delta);
+        } else {
+            context.enableScissor(0, 28, width, viewportBottom);
+            for (Placement placement : contentWidgets) placement.widget.extractRenderState(context, mouseX, mouseY, delta);
+            catalog.render(new HeartCatalogCanvas(context, minecraft), width, contentOrigin + GALLERY_TOP, 28, viewportBottom, false);
+            context.disableScissor();
+            catalogButton.extractRenderState(context, mouseX, mouseY, delta);
         }
-        return super.mouseClicked(event, doubleClick);
+        resetButton.extractRenderState(context, mouseX, mouseY, delta);
+        doneButton.extractRenderState(context, mouseX, mouseY, delta);
+        context.centeredText(font, HeartText.text(catalogMode ? "heartistica.catalog" : "heartistica.title"), width / 2, 12, 0xFFFFFFFF);
     }
-    @Override public boolean keyPressed(KeyEvent event) {
-        boolean handled = super.keyPressed(event);
-        for (Placement placement : content) {
-            if (placement.widget == getFocused()) {
-                int y = placement.widget.getY();
-                if (y < VIEWPORT_TOP) scroll -= VIEWPORT_TOP - y;
-                else if (y + 20 > viewportBottom) scroll += y + 20 - viewportBottom;
-                positionContent();
-                break;
-            }
-        }
-        return handled;
-    }
-    private void rebuild() { rebuildWidgets(); }
-    private void select(int direction) {
-        var styles = HeartStyles.all();
-        int index = Math.max(0, Math.min(styles.size() - 1, styles.indexOf(HeartStyles.selected()) + direction));
-        config.heartStyle = styles.get(index).id; rebuild();
-    }
-    private static Component toggle(String key, boolean enabled) {
-        return Component.translatable(key).copy().append(": ").append(CommonComponents.optionStatus(enabled));
-    }
-
-    @Override public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
-        graphics.fill(0, 0, width, height, 0xE00B0E14);
-        graphics.enableScissor(0, VIEWPORT_TOP, width, viewportBottom);
-        int contentMouseY = mouseY >= VIEWPORT_TOP && mouseY < viewportBottom ? mouseY : Integer.MIN_VALUE;
-        for (Placement placement : content) placement.widget.extractRenderState(graphics, mouseX, contentMouseY, delta);
-        int x = width / 2 - 64, y = origin + GALLERY_TOP;
-        graphics.centeredText(font, Component.translatable("heartistica.gallery"), width / 2, y - 16, 0xFFFFFFFF);
-        graphics.fill(x, y, x + 128, y + 128, 0xFF777777);
-        graphics.fill(x + 1, y + 1, x + 127, y + 127, 0xFF272727);
-        HeartStyles.Style style = HeartStyles.selected();
-        style.resolve(minecraft);
-        int spriteIndex = config.onlyAbsorption ? HeartDisplayState.GOLD : HeartDisplayState.FULL;
-        HeartStyles.Icon icon = style.icon(spriteIndex);
-        double fit = 104.0 / Math.max(icon.width(), icon.height());
-        int iw = Math.max(1, (int)Math.round(icon.width() * fit)), ih = Math.max(1, (int)Math.round(icon.height() * fit));
-        int ix = x + (128 - iw) / 2, iy = y + (128 - ih) / 2;
-        if (style.needsContainer(spriteIndex)) drawIcon(graphics, style.icon(HeartDisplayState.EMPTY), ix, iy, iw, ih);
-        drawIcon(graphics, icon, ix, iy, iw, ih);
-        graphics.centeredText(font, style.name(), width / 2, y + 162, 0xFFFFFFFF);
-        graphics.disableScissor();
-        graphics.centeredText(font, title, width / 2, 8, 0xFFFFFFFF);
-        resetButton.extractRenderState(graphics, mouseX, mouseY, delta);
-        doneButton.extractRenderState(graphics, mouseX, mouseY, delta);
-        if (maxScroll() > 0) {
-            int barX = (width + Math.min(310, width - 24)) / 2 + 4;
-            int track = viewportBottom - VIEWPORT_TOP;
-            int thumb = Math.max(12, track * track / CONTENT_HEIGHT);
-            int barY = VIEWPORT_TOP + scroll * (track - thumb) / maxScroll();
-            graphics.fill(barX, VIEWPORT_TOP, barX + 2, viewportBottom, 0xFF333333);
-            graphics.fill(barX, barY, barX + 2, barY + thumb, 0xFFAAAAAA);
-        }
-    }
-
-    private static void drawIcon(GuiGraphicsExtractor graphics, HeartStyles.Icon icon, int x, int y, int w, int h) {
-        if (icon.sprite() != null) graphics.blitSprite(RenderPipelines.GUI_TEXTURED, icon.sprite(), x, y, w, h);
-        else graphics.blit(RenderPipelines.GUI_TEXTURED, icon.texture(), x, y,
-                icon.u0() * icon.atlasWidth(), icon.v0() * icon.atlasHeight(), w, h,
-                icon.width(), icon.height(), icon.atlasWidth(), icon.atlasHeight());
-    }
-
-    @Override public void onClose() { HeartisticaClient.profiles().saveCurrent(); minecraft.setScreenAndShow(parent); }
-
+    @FunctionalInterface private interface BoolSetter { void set(boolean value); }
     @FunctionalInterface private interface IntSetter { void set(int value); }
     private static final class IntSlider extends AbstractSliderButton {
-        private final String key; private final int min, max; private final boolean zeroOff; private final IntSetter setter;
-        IntSlider(int x, int y, int width, String key, int current, int min, int max, boolean zeroOff, IntSetter setter) {
-            super(x, y, width, 20, Component.empty(), (current - min) / (double)(max - min));
-            this.key = key; this.min = min; this.max = max; this.zeroOff = zeroOff; this.setter = setter; updateMessage();
+        private final String key;
+        private final int min, max;
+        private final boolean zeroIsOff;
+        private final IntSetter setter;
+        IntSlider(int x, int y, int width, String key, int initial, int min, int max, boolean zeroIsOff, IntSetter setter) {
+            super(x, y, width, 20, Component.empty(), (initial - min) / (double) (max - min));
+            this.key = key; this.min = min; this.max = max; this.zeroIsOff = zeroIsOff; this.setter = setter; updateMessage();
         }
-        private int current() { return min + (int)Math.round(value * (max - min)); }
+        private int current() { return min + (int) Math.round(value * (max - min)); }
         @Override protected void updateMessage() {
-            int value = current();
-            Object shown = zeroOff && value == 0 ? CommonComponents.OPTION_OFF
-                    : "heartistica.height".equals(key) ? HeartisticaConfig.heightText(value / 2.0) : value;
-            setMessage(Component.translatable(key, shown));
+            int current = current();
+            Object shown = zeroIsOff && current == 0 ? UiText.get(HeartisticaClient.config().language, "heartistica.off")
+                    : "heartistica.height".equals(key) ? HeartisticaConfig.heightText(current / 2.0) : current;
+            setMessage(HeartText.text(key, shown));
         }
         @Override protected void applyValue() { setter.set(current()); }
     }

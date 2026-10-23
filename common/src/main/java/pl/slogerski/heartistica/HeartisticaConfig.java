@@ -7,7 +7,6 @@ import com.google.gson.JsonParser;
 import net.fabricmc.loader.api.FabricLoader;
 
 import java.io.IOException;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -16,11 +15,11 @@ import java.nio.file.StandardCopyOption;
 
 public final class HeartisticaConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final int CURRENT_VERSION = 3;
+    private static final int CURRENT_VERSION = 5;
     private static final double DEFAULT_HEIGHT = 4;
     private static final System.Logger LOGGER = System.getLogger("Heartistica");
 
-    public int configVersion = 3;
+    public int configVersion = CURRENT_VERSION;
     public boolean enabled = true;
     public int range = 48;
     public int nearestPlayers = 0;
@@ -30,22 +29,22 @@ public final class HeartisticaConfig {
     public boolean onlyAbsorption = false;
     public boolean onlyWhenDamaged = true;
     public String heartStyle = "resource_pack";
+    public enum EventHeartsMode { AUTO, ON, OFF }
+    public EventHeartsMode eventHeartsMode = EventHeartsMode.AUTO;
+    public String language = "en_us";
 
     static HeartisticaConfig load() {
         return load(configPath());
     }
 
     static HeartisticaConfig load(Path path) {
-        if (!Files.isRegularFile(path)) return new HeartisticaConfig();
-        try (Reader reader = Files.newBufferedReader(path)) {
-            JsonObject data = JsonParser.parseReader(reader).getAsJsonObject();
-            HeartisticaConfig loaded = GSON.fromJson(data, HeartisticaConfig.class);
-            int storedVersion = data.has("configVersion") ? data.get("configVersion").getAsInt() : 1;
-            if (storedVersion < 2) {
-                if (loaded.range == 15) loaded.range = 48;
+        try {
+            if (!Files.isRegularFile(path)) return new HeartisticaConfig();
+            try (var input = Files.newInputStream(path)) {
+                byte[] bytes = input.readNBytes(65_537);
+                if (bytes.length > 65_536) throw new IOException("Settings file is too large");
+                return fromJson(JsonParser.parseString(new String(bytes, java.nio.charset.StandardCharsets.UTF_8)).getAsJsonObject());
             }
-            loaded.sanitize();
-            return loaded;
         } catch (IOException | RuntimeException error) {
             LOGGER.log(System.Logger.Level.WARNING, "Could not read Heartistica settings: " + path, error);
             return new HeartisticaConfig();
@@ -54,6 +53,40 @@ public final class HeartisticaConfig {
 
     public void save() {
         save(configPath());
+    }
+
+    static HeartisticaConfig fromJson(JsonObject data) {
+        HeartisticaConfig loaded = GSON.fromJson(data, HeartisticaConfig.class);
+        int storedVersion = data.has("configVersion") ? data.get("configVersion").getAsInt() : 1;
+        if (storedVersion < 2 && loaded.range == 15) loaded.range = 48;
+        if (storedVersion < 5 && !data.has("eventHeartsMode")) {
+            loaded.eventHeartsMode = legacyEventMode(data, storedVersion, loaded.heartStyle);
+        }
+        loaded.sanitize();
+        return loaded;
+    }
+
+    private static EventHeartsMode legacyEventMode(JsonObject data, int version, String style) {
+        boolean custom = !"resource_pack".equals(style);
+        String key = custom && version >= 4 ? "catalogEventHearts" : "eventHearts";
+        if (data.has(key)) {
+            if (data.get(key).getAsBoolean() && custom) return EventHeartsMode.ON;
+            if (!data.get(key).getAsBoolean() && (!custom || version < 4)) return EventHeartsMode.OFF;
+        }
+        if (!custom && data.has("resourcePackEventHearts") && data.get("resourcePackEventHearts").getAsBoolean())
+            return EventHeartsMode.ON;
+        return EventHeartsMode.AUTO;
+    }
+
+    boolean eventHeartsEnabled(boolean modifiedResourcePack) {
+        return switch (eventHeartsMode) {
+            case AUTO -> heartStyle.equals("resource_pack") && !modifiedResourcePack;
+            case ON -> true;
+            case OFF -> false;
+        };
+    }
+    void setEventHearts(boolean enabled) {
+        eventHeartsMode = enabled ? EventHeartsMode.ON : EventHeartsMode.OFF;
     }
 
     void save(Path path) {
@@ -76,7 +109,7 @@ public final class HeartisticaConfig {
         } finally {
             if (temporary != null) {
                 try { Files.deleteIfExists(temporary); }
-                catch (IOException error) { LOGGER.log(System.Logger.Level.WARNING, "Could not remove temporary settings file", error); }
+                catch (IOException | RuntimeException error) { LOGGER.log(System.Logger.Level.WARNING, "Could not remove temporary settings file", error); }
             }
         }
     }
@@ -101,6 +134,8 @@ public final class HeartisticaConfig {
     public void reset() {
         configVersion = CURRENT_VERSION;
         heartStyle = "resource_pack";
+        eventHeartsMode = EventHeartsMode.AUTO;
+        language = "en_us";
         enabled = true;
         range = 48;
         nearestPlayers = 0;
@@ -127,6 +162,8 @@ public final class HeartisticaConfig {
         onlyAbsorption = source.onlyAbsorption;
         onlyWhenDamaged = source.onlyWhenDamaged;
         heartStyle = source.heartStyle;
+        eventHeartsMode = source.eventHeartsMode;
+        language = source.language;
         sanitize();
     }
 
@@ -137,6 +174,8 @@ public final class HeartisticaConfig {
 
     void sanitize() {
         if (heartStyle == null || !heartStyle.matches("[a-z0-9_-]+")) heartStyle = "resource_pack";
+        if (!"pl_pl".equals(language)) language = "en_us";
+        if (eventHeartsMode == null) eventHeartsMode = EventHeartsMode.AUTO;
         configVersion = CURRENT_VERSION;
         range = clamp(range, 0, 128);
         nearestPlayers = clamp(nearestPlayers, 0, 64);

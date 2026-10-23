@@ -108,7 +108,7 @@ final class PlayerHeartRenderer {
         HeartStyles.Style style = HeartStyles.selected();
         style.resolve(minecraft);
         float heartWidth = HEART_HEIGHT * style.icon(0).width() / style.icon(0).height();
-        float advance = Math.max(0, heartWidth - 1);
+        float advance = HeartDisplayState.iconAdvance(heartWidth, style.sourceWidth());
         PoseStack pose = context.pose();
         Matrix4fc cameraRotation = new Matrix4f().rotation(camera.rotation());
         for (PlayerState state : SELECTED) {
@@ -133,26 +133,29 @@ final class PlayerHeartRenderer {
             }
             if (!state.visible) continue;
             pose.pushPose();
-            pose.translate(position.x - cameraPos.x, anchorY - cameraPos.y, position.z - cameraPos.z);
-            pose.mulPose(cameraRotation);
-            pose.scale(scale, -scale, scale);
-            if (numeric) {
-                context.text(state.text, startX, display.goldLabel ? ABSORPTION_COLOR : HEART_COLOR, FULL_BRIGHT);
-                int sprite = display.goldLabel ? HeartDisplayState.GOLD : HeartDisplayState.FULL;
-                float x = startX + state.textWidth + 1;
-                context.geometry(style.layer(), (matrix, vertices) -> drawHeart(vertices, matrix, style, sprite, x, 0));
-            } else {
-                context.geometry(style.layer(), (matrix, vertices) -> {
-                    for (int slot = 0; slot < display.slots; slot++) {
-                        byte sprite = display.sprites[slot];
-                        if (sprite == HeartDisplayState.HIDDEN) continue;
-                        drawHeart(vertices, matrix, style, sprite,
-                                startX + slot % HeartDisplayState.HEARTS_PER_ROW * advance,
-                                -(slot / HeartDisplayState.HEARTS_PER_ROW) * ROW_ADVANCE);
-                    }
-                });
+            try {
+                pose.translate(position.x - cameraPos.x, anchorY - cameraPos.y, position.z - cameraPos.z);
+                pose.mulPose(cameraRotation);
+                pose.scale(scale, -scale, scale);
+                if (numeric) {
+                    context.text(state.text, startX, display.goldLabel ? ABSORPTION_COLOR : HEART_COLOR, FULL_BRIGHT);
+                    int sprite = display.goldLabel ? HeartDisplayState.GOLD : HeartDisplayState.FULL;
+                    float x = startX + state.textWidth + 1;
+                    context.geometry(style.layer(), (matrix, vertices) -> drawHeart(vertices, matrix, style, sprite, x, 0));
+                } else {
+                    context.geometry(style.layer(), (matrix, vertices) -> {
+                        for (int slot = 0; slot < display.slots; slot++) {
+                            byte sprite = display.sprites[slot];
+                            if (sprite == HeartDisplayState.HIDDEN) continue;
+                            drawHeart(vertices, matrix, style, sprite,
+                                    startX + slot % HeartDisplayState.HEARTS_PER_ROW * advance,
+                                    -(slot / HeartDisplayState.HEARTS_PER_ROW) * ROW_ADVANCE);
+                        }
+                    });
+                }
+            } finally {
+                pose.popPose();
             }
-            pose.popPose();
         }
         context.finish();
     }

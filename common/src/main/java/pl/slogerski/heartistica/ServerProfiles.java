@@ -44,7 +44,9 @@ final class ServerProfiles {
         String key = serverKey(address);
         if (Objects.equals(server, key)) return;
         server = key;
+        String language = config.language;
         config.copyFrom(profiles.getOrDefault(server, defaults));
+        config.language = language;
     }
 
     boolean canSave() {
@@ -57,6 +59,7 @@ final class ServerProfiles {
 
     boolean saveForServer() {
         if (!canSave()) return false;
+        saveLanguage();
         Map<String, HeartisticaConfig> updated = new LinkedHashMap<>(profiles);
         updated.put(server, config.copy());
         if (!write(updated)) return false;
@@ -67,6 +70,7 @@ final class ServerProfiles {
 
     boolean backToDefault() {
         if (!hasProfile() || !writable) return false;
+        saveLanguage();
         Map<String, HeartisticaConfig> updated = new LinkedHashMap<>(profiles);
         updated.remove(server);
         if (!write(updated)) return false;
@@ -90,6 +94,13 @@ final class ServerProfiles {
         }
     }
 
+    void saveLanguage() {
+        if (!defaults.language.equals(config.language)) {
+            defaults.language = config.language;
+            defaults.save(defaultsPath);
+        }
+    }
+
     static String serverKey(String address) {
         if (address == null) return null;
         String key = address.strip().toLowerCase(Locale.ROOT);
@@ -108,8 +119,8 @@ final class ServerProfiles {
     }
 
     private void load() {
-        if (!Files.exists(profilesPath) && !Files.exists(backupPath())) return;
         try {
+            if (!Files.exists(profilesPath) && !Files.exists(backupPath())) return;
             profiles.putAll(read(profilesPath));
         } catch (UnsupportedSchema error) {
             writable = false;
@@ -127,8 +138,12 @@ final class ServerProfiles {
     }
 
     private Map<String, HeartisticaConfig> read(Path path) throws IOException {
-        if (Files.size(path) > MAX_BYTES) throw new IOException("Server profiles file is too large");
-        JsonObject root = JsonParser.parseString(Files.readString(path)).getAsJsonObject();
+        JsonObject root;
+        try (var input = Files.newInputStream(path)) {
+            byte[] bytes = input.readNBytes((int) MAX_BYTES + 1);
+            if (bytes.length > MAX_BYTES) throw new IOException("Server profiles file is too large");
+            root = JsonParser.parseString(new String(bytes, StandardCharsets.UTF_8)).getAsJsonObject();
+        }
         if (!root.has("schemaVersion") || !root.get("schemaVersion").isJsonPrimitive()
                 || !root.get("schemaVersion").getAsJsonPrimitive().isNumber()
                 || root.get("schemaVersion").getAsBigDecimal().compareTo(java.math.BigDecimal.valueOf(SCHEMA_VERSION)) != 0) {
@@ -140,8 +155,7 @@ final class ServerProfiles {
         for (var entry : entries.entrySet()) {
             String key = serverKey(entry.getKey());
             if (key == null || !entry.getValue().isJsonObject()) throw new IOException("Invalid server profile");
-            HeartisticaConfig settings = GSON.fromJson(entry.getValue(), HeartisticaConfig.class);
-            settings.sanitize();
+            HeartisticaConfig settings = HeartisticaConfig.fromJson(entry.getValue().getAsJsonObject());
             if (loaded.put(key, settings) != null) throw new IOException("Duplicate server profile");
         }
         return loaded;
@@ -186,7 +200,7 @@ final class ServerProfiles {
         } finally {
             if (temporary != null) {
                 try { Files.deleteIfExists(temporary); }
-                catch (IOException error) { LOGGER.log(System.Logger.Level.WARNING, "Could not remove profile temporary file", error); }
+                catch (IOException | RuntimeException error) { LOGGER.log(System.Logger.Level.WARNING, "Could not remove profile temporary file", error); }
             }
         }
     }

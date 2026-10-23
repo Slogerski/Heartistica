@@ -11,6 +11,9 @@ subprojects {
     tasks.withType(Jar).configureEach {
         from(rootProject.file("LICENSE"))
     }
+    tasks.matching { it.name == "processResources" }.configureEach {
+        from(rootProject.file("remote/catalog.json")) { into("assets/heartistica") }
+    }
 }
 
 def requestedMinecraft = providers.gradleProperty("target_mc").orNull
@@ -22,10 +25,20 @@ sourceSets {
     main { java.setSrcDirs([]); resources.setSrcDirs([]) }
     heartLogicTest {
         java.srcDirs("common/src/main/java", "common/src/test/java")
+        resources.srcDir("common/src/main/resources")
+        resources.include("assets/heartistica/lang/*.json")
         java.include("pl/slogerski/heartistica/HeartDisplayState.java")
         java.include("pl/slogerski/heartistica/HeartVisibilityRules.java")
         java.include("pl/slogerski/heartistica/HeartisticaConfig.java")
         java.include("pl/slogerski/heartistica/ServerProfiles.java")
+        java.include("pl/slogerski/heartistica/HeartCatalog.java")
+        java.include("pl/slogerski/heartistica/HeartTextureCheck.java")
+        java.include("pl/slogerski/heartistica/HeartSpriteBounds*.java")
+        java.include("pl/slogerski/heartistica/Catalog*.java")
+        java.include("pl/slogerski/heartistica/UiText.java")
+        java.include("pl/slogerski/heartistica/LanguageSettings*.java")
+        java.include("pl/slogerski/heartistica/OgulniegaLanguage.java")
+        java.include("com/ogulniega/OgulniegaModApi.java")
         java.include("pl/slogerski/heartistica/HeartDisplayStateTest.java")
     }
 }
@@ -39,6 +52,13 @@ tasks.register("verifyHeartLogic", JavaExec) {
     dependsOn(tasks.named("heartLogicTestClasses"))
     classpath = sourceSets.heartLogicTest.runtimeClasspath
     mainClass = "pl.slogerski.heartistica.HeartDisplayStateTest"
+}
+
+tasks.register("verifyCatalog", JavaExec) {
+    dependsOn(tasks.named("heartLogicTestClasses"))
+    dependsOn("generateHeartAtlas")
+    classpath = sourceSets.heartLogicTest.runtimeClasspath
+    mainClass = "pl.slogerski.heartistica.CatalogTest"
 }
 
 def generatedHeartAssets = layout.buildDirectory.dir('generated/heart-assets')
@@ -55,15 +75,17 @@ tasks.register('generateHeartAtlas') {
             if (!(pack.id ==~ /[a-z0-9_-]+/) || pack.id == 'resource_pack' || !ids.add(pack.id)) {
                 throw new GradleException("Invalid or duplicate heart pack id: ${pack.id}")
             }
+            def textureRoot = file('common/src/main/resources/assets/heartistica/textures/gui').canonicalFile
+            def root = new File(textureRoot, pack.id.toString()).canonicalFile
+            if (!root.toPath().startsWith(textureRoot.toPath())) throw new GradleException('Heart pack outside texture directory')
             def readSprite = { name ->
-                def root = file('common/src/main/resources/assets/heartistica/textures/gui').canonicalFile
                 def source = new File(root, name.toString()).canonicalFile
                 if (!source.toPath().startsWith(root.toPath())) throw new GradleException('Sprite outside texture directory')
                 def image = javax.imageio.ImageIO.read(source)
                 if (image == null || image.width > 1024 || image.height > 1024) throw new GradleException("Invalid sprite ${name}")
                 image
             }
-            def sprites = [readSprite(pack.full), readSprite(pack.half), readSprite(pack.empty)]
+            def sprites = [readSprite('heart.png'), readSprite('heart_half.png'), readSprite('heart_empty.png')]
             int w = sprites[0].width, h = sprites[0].height
             def tint = { source, boolean half ->
                 def image = new java.awt.image.BufferedImage(w, h, java.awt.image.BufferedImage.TYPE_INT_ARGB)
@@ -80,9 +102,22 @@ tasks.register('generateHeartAtlas') {
                 image
             }
             if (sprites.any { it.width != w || it.height != h }) throw new GradleException("Mismatched heart sizes in ${pack.id}")
-            sprites.add(pack.absorptionFull ? readSprite(pack.absorptionFull) : tint(sprites[0], false))
-            sprites.add(pack.absorptionHalf ? readSprite(pack.absorptionHalf) : tint(sprites[1], true))
+            sprites.add(new File(root, 'heart_absorption.png').isFile() ? readSprite('heart_absorption.png') : tint(sprites[0], false))
+            sprites.add(new File(root, 'heart_absorption_half.png').isFile() ? readSprite('heart_absorption_half.png') : tint(sprites[1], true))
             if (sprites.any { it.width != w || it.height != h }) throw new GradleException("Mismatched absorption sizes in ${pack.id}")
+            int left = w, top = h, right = -1, bottom = -1
+            sprites.each { sprite ->
+                for (int y = 0; y < h; y++) for (int x = 0; x < w; x++) {
+                    if ((sprite.getRGB(x, y) >>> 24) != 0) {
+                        left = Math.min(left, x)
+                        top = Math.min(top, y)
+                        right = Math.max(right, x)
+                        bottom = Math.max(bottom, y)
+                    }
+                }
+            }
+            def content = right < 0 ? [x:0, y:0, width:w, height:h]
+                    : [x:left, y:top, width:right - left + 1, height:bottom - top + 1]
             int atlasWidth = Integer.highestOneBit((w + 2) * 5 - 1) << 1
             int atlasHeight = Integer.highestOneBit(h + 1) << 1
             def atlas = new java.awt.image.BufferedImage(atlasWidth, atlasHeight, java.awt.image.BufferedImage.TYPE_INT_ARGB)
@@ -94,7 +129,7 @@ tasks.register('generateHeartAtlas') {
             target.parentFile.mkdirs()
             javax.imageio.ImageIO.write(atlas, 'png', target)
             definitions.add([id:pack.id, name:pack.name, texture:"heartistica:${atlasName}",
-                             width:w, height:h, atlasWidth:atlasWidth, atlasHeight:atlasHeight])
+                             width:w, height:h, atlasWidth:atlasWidth, atlasHeight:atlasHeight, content:content])
         }
         def manifest = generatedHeartAssets.get().file('assets/heartistica/heart_styles.json').asFile
         manifest.parentFile.mkdirs()
@@ -105,6 +140,7 @@ tasks.register('generateHeartAtlas') {
 tasks.register("buildAll") {
     group = "build"
     dependsOn(tasks.named("verifyHeartLogic"))
+    dependsOn(tasks.named("verifyCatalog"))
     dependsOn(activeVersionSpecs.collect { ":${it.project}:build" })
 }
 

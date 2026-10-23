@@ -8,7 +8,6 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.texture.Sprite;
 import net.minecraft.resource.ResourceManager;
 import net.minecraft.resource.ResourceType;
-import net.minecraft.text.Text;
 import net.minecraft.util.Identifier;
 import org.slf4j.LoggerFactory;
 
@@ -21,13 +20,19 @@ final class HeartStyles {
             Identifier.of("minecraft", "hud/heart/container"), Identifier.of("minecraft", "hud/heart/absorbing_full"),
             Identifier.of("minecraft", "hud/heart/absorbing_half")
     };
-    private static final Style VANILLA = new Style("resource_pack", "", null);
+    private static final Style VANILLA = new Style("resource_pack", null);
     private static final Identifier[] HARDCORE_HUD = {
             Identifier.of("minecraft", "hud/heart/hardcore_full"), Identifier.of("minecraft", "hud/heart/hardcore_half"),
             Identifier.of("minecraft", "hud/heart/container_hardcore"), Identifier.of("minecraft", "hud/heart/absorbing_hardcore_full"),
             Identifier.of("minecraft", "hud/heart/absorbing_hardcore_half")
     };
     private static volatile List<Style> styles = List.of(VANILLA);
+    private static final java.util.Map<String, Style> remote = new java.util.concurrent.ConcurrentHashMap<>();
+
+    static boolean loadingComplete() {
+        MinecraftClient client = MinecraftClient.getInstance();
+        return client.getOverlay() == null;
+    }
 
     static void register() {
         ResourceManagerHelper.get(ResourceType.CLIENT_RESOURCES).registerReloadListener(
@@ -38,6 +43,9 @@ final class HeartStyles {
     }
 
     private static void load(ResourceManager manager) {
+        if (HeartisticaClient.catalog() != null) {
+            HeartisticaClient.catalog().checkResourcePack(new Object(), () -> ResourcePackHearts.modified(manager));
+        }
         List<Style> loaded = new ArrayList<>();
         loaded.add(VANILLA);
         try (var reader = manager.getResourceOrThrow(Identifier.of("heartistica", "heart_styles.json")).getReader()) {
@@ -50,40 +58,81 @@ final class HeartStyles {
                 if (w < 1 || h < 1 || w > 1024 || h > 1024 || aw < (w + 2) * 5 || ah < h + 2) continue;
                 Identifier texture = Identifier.tryParse(data.get("texture").getAsString());
                 if (texture == null) continue;
+                HeartSpriteBounds content = HeartSpriteBounds.read(data, w, h);
                 Icon[] icons = new Icon[5];
                 for (int i = 0; i < icons.length; i++) icons[i] = new Icon(null, texture,
-                        (i * (w + 2) + 1) / (float) aw, 1F / ah,
-                        (i * (w + 2) + 1 + w) / (float) aw, (1F + h) / ah, w, h, aw, ah);
-                loaded.add(new Style(id, data.get("name").getAsString(), icons));
+                        (i * (w + 2) + 1 + content.x()) / (float) aw, (1F + content.y()) / ah,
+                        (i * (w + 2) + 1 + content.x() + content.width()) / (float) aw,
+                        (1F + content.y() + content.height()) / ah, content.width(), content.height(), aw, ah);
+                loaded.add(new Style(id, icons, w));
             }
-        } catch (Exception exception) {
+        } catch (java.io.IOException | RuntimeException exception) {
             LoggerFactory.getLogger("Heartistica").warn("Could not load heart styles", exception);
         }
+        loaded.addAll(remote.values());
         styles = List.copyOf(loaded);
     }
 
-    static List<Style> all() { return styles; }
     static Style selected() {
-        String id = HeartisticaClient.config().heartStyle;
-        return styles.stream().filter(style -> style.id.equals(id)).findFirst().orElse(VANILLA);
+        String id = HeartisticaClient.catalog() == null ? HeartisticaClient.config().heartStyle
+                : HeartisticaClient.catalog().selected(HeartisticaClient.config());
+        Style selected = find(id);
+        if (selected == null && (HeartisticaClient.catalog() == null
+                || !HeartisticaClient.catalog().needsUpdate(HeartisticaClient.config().heartStyle)))
+            selected = find(HeartisticaClient.config().heartStyle);
+        return selected == null ? VANILLA : selected;
+    }
+
+    static Style find(String id) {
+        if (HeartisticaClient.catalog() != null) HeartisticaClient.catalog().request(id);
+        return styles.stream().filter(style -> style.id.equals(id)).findFirst().orElse(null);
+    }
+
+    static void installRemote(CatalogImages.Atlas atlas) {
+        MinecraftClient client = MinecraftClient.getInstance();
+        client.execute(() -> {
+            try {
+                Identifier texture = Identifier.of("heartistica", "catalog/" + atlas.id());
+                CatalogTexture.install(client, texture, atlas.png());
+                HeartSpriteBounds content = atlas.content();
+                Icon[] icons = new Icon[5];
+                for (int i = 0; i < 5; i++) {
+                    int x = i * (atlas.width() + 2) + 1 + content.x(), y = 1 + content.y();
+                    icons[i] = new Icon(null, texture, x / (float) atlas.atlasWidth(), y / (float) atlas.atlasHeight(),
+                            (x + content.width()) / (float) atlas.atlasWidth(), (y + content.height()) / (float) atlas.atlasHeight(),
+                            content.width(), content.height(), atlas.atlasWidth(), atlas.atlasHeight());
+                }
+                Style style = new Style(atlas.id(), icons, atlas.width());
+                remote.put(atlas.id(), style);
+                List<Style> updated = new ArrayList<>(styles);
+                updated.removeIf(existing -> existing.id.equals(atlas.id()));
+                updated.add(style);
+                styles = List.copyOf(updated);
+            } catch (java.io.IOException | RuntimeException | LinkageError error) {
+                HeartisticaClient.catalog().installationFailed(atlas.id());
+                LoggerFactory.getLogger("Heartistica").warn("Could not upload catalog heart " + atlas.id(), error);
+            }
+        });
     }
 
     static final class Style {
         final String id;
-        private final String name;
+        private final int sourceWidth;
         private Icon[] icons;
         private Object lastHudSprite;
         private boolean lastHardcore;
         private RenderLayer layer;
 
-        Style(String id, String name, Icon[] icons) {
-            this.id = id;
-            this.name = name;
-            this.icons = icons;
-            if (icons != null) layer = HeartRenderLayer.text(icons[0].texture);
+        Style(String id, Icon[] icons) {
+            this(id, icons, icons == null ? 0 : icons[0].width());
         }
 
-        Text name() { return id.equals("resource_pack") ? Text.translatable("heartistica.style.resource_pack") : Text.literal(name); }
+        Style(String id, Icon[] icons, int sourceWidth) {
+            this.id = id;
+            this.icons = icons;
+            this.sourceWidth = sourceWidth;
+            if (icons != null) layer = HeartRenderLayer.text(icons[0].texture);
+        }
 
         void resolve(MinecraftClient client) {
             if (!id.equals("resource_pack")) return;
@@ -99,6 +148,7 @@ final class HeartStyles {
 
         RenderLayer layer() { return layer; }
         Icon icon(int index) { return icons[index]; }
+        int sourceWidth() { return sourceWidth == 0 ? icons[0].width() : sourceWidth; }
         boolean needsContainer(int index) { return id.equals("resource_pack") && index != HeartDisplayState.EMPTY; }
     }
 

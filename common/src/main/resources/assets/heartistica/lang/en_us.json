@@ -1,6 +1,5 @@
 {
   "heartistica.title": "Heartistica Settings",
-  "heartistica.gallery": "Heart Appearance",
   "heartistica.style.resource_pack": "Active Resource Pack",
   "heartistica.enabled": "Heart Indicators",
   "heartistica.range": "Display Range: %s Blocks",
@@ -14,5 +13,25 @@
   "heartistica.save_server": "Save For This Server",
   "heartistica.back_default": "Back To Default",
   "heartistica.save_failed": "Save Failed",
-  "heartistica.reset": "Reset Defaults"
+  "heartistica.reset": "Reset Defaults",
+  "heartistica.catalog": "Heart Catalog",
+  "heartistica.catalog.open": "Open Catalog",
+  "heartistica.catalog.restore": "Restore",
+  "heartistica.catalog.events": "Event Hearts",
+  "heartistica.catalog.auto": "Auto (%s)",
+  "heartistica.catalog.empty": "No Hearts",
+  "heartistica.catalog.need_update": "Need Update",
+  "heartistica.catalog.loading": "Loading Catalog…",
+  "heartistica.catalog.offline": "Offline: Using Saved Catalog",
+  "heartistica.category.event": "Event",
+  "heartistica.category.popular": "Popular",
+  "heartistica.language": "Language: %s",
+  "heartistica.language.pl_pl": "Polish",
+  "heartistica.language.en_us": "English",
+  "heartistica.language.ogulniega": "Ogulniega",
+  "heartistica.language.ogulniega_missing": "Ogulniega (Unavailable)",
+  "heartistica.back": "Back",
+  "heartistica.done": "Done",
+  "heartistica.on": "ON",
+  "heartistica.off": "OFF"
 }

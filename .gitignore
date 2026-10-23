@@ -9,12 +9,15 @@ run/
 runs/
 logs/
 crash-reports/
+docs/
 
 .idea/
 *.iml
 *.ipr
 *.iws
 .vscode/
+*.code-workspace
+local.properties
 
 .env
 .env.*

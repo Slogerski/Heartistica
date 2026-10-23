@@ -117,6 +117,15 @@ public final class HeartDisplayStateTest {
         check(s.slots == 1 && s.sprites[0] == HeartDisplayState.GOLD, "minor damage displays only absorption icons");
         s = new HeartDisplayState();
         s.update(9, 10, 4, false, false, true, 0);
+        check(HeartDisplayState.iconAdvance(8, 9) == 7, "normal hearts retain one pixel of overlap");
+        check(HeartDisplayState.iconAdvance(9.5F, 16) == 9, "sixteen pixel sprites support fractional spacing");
+        check(HeartDisplayState.iconAdvance(16, 32) == 15, "other resolutions retain their spacing");
+        check(HeartDisplayState.iconAdvance(0.25F, 16) == 0, "heart advance cannot be negative");
+        check(HeartDisplayState.iconAdvance(8, 16) - 7 == 0.5F, "sixteen pixel step increases by exactly half a pixel");
+        check(9 * HeartDisplayState.iconAdvance(8, 16) + 8 == 9 * 7 + 8 + 4.5F,
+                "a ten-heart row gains exactly four and a half pixels across nine gaps");
+        check(s.slots == 7 && s.iconStartX(8, HeartDisplayState.iconAdvance(8, 16)) == -27.5F,
+                "sixteen pixel row remains centered after the half-pixel spacing change");
         check(s.slots == 7 && s.iconStartX(8, 7) == -26, "mixed single row is centered one pixel left");
         check(s.iconStartX(16, 15) == -54, "custom sprite width keeps single row centered");
         s.update(19, 20, 0, false, false, true, 1);
@@ -197,7 +206,7 @@ public final class HeartDisplayStateTest {
             config.reset();
             check(config.heightOffsetPixels == 4, "reset restores plus four pixel height");
             check(config.onlyWhenDamaged, "reset enables damage filter");
-            check(config.configVersion == 3 && config.range == 48 && !config.onlyAbsorption,
+            check(config.configVersion == 5 && config.range == 48 && !config.onlyAbsorption,
                     "reset restores version and defaults");
         } finally {
             Files.deleteIfExists(file);

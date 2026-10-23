@@ -132,7 +132,7 @@ final class PlayerHeartRenderer {
         HeartStyles.Style style = HeartStyles.selected();
         style.resolve(client);
         float heartWidth = HEART_HEIGHT * style.icon(0).width() / style.icon(0).height();
-        float heartAdvance = Math.max(0, heartWidth - 1);
+        float heartAdvance = HeartDisplayState.iconAdvance(heartWidth, style.sourceWidth());
         if (renderBuffers != null && renderBuffers.layer != style.layer()) {
             renderBuffers.close();
             renderBuffers = null;
