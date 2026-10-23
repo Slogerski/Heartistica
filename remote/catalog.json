@@ -2,18 +2,38 @@
   "schemaVersion": 1,
   "event": { "id": "none" },
   "categories": {
-    "Event": ["zombie", "zombie2"],
+    "Event": ["zombie", "skeleton", "pumpkin", "ghost", "candy"],
     "Popular": ["resource_pack", "heartistica"],
     "Limited": [
       {
         "id": "zombie",
         "name": "Zombie",
-        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/zombie_Heart.png"
+        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/zombie_Heart.png",
+        "sha": "8f9de7555385c18eb85ab5e0e876a1d43d53f61a"
       },
       {
-        "id": "zombie2",
-        "name": "Zombie2",
-        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/pixil-frame-0_2.png"
+        "id": "skeleton",
+        "name": "Skeleton",
+        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/skeleton_heart.png",
+        "sha": "28ef4cba2505ffe84191375404f3a2f28485bcab"
+      },
+      {
+        "id": "pumpkin",
+        "name": "Pumpkin",
+        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/pumpkin_heart.png",
+        "sha": "a10da7118be1173b9d506dc9856b99cbbcbb9b20"
+      },
+      {
+        "id": "ghost",
+        "name": "Ghost",
+        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/ghost_heart.png",
+        "sha": "c3529a7b99af9443758cc5f69a84d91e96f908d9"
+      },
+      {
+        "id": "candy",
+        "name": "Candy",
+        "image": "https://raw.githubusercontent.com/Slogerski/Heartistica/main/catalog/Event/candy.png",
+        "sha": "425d5fe38d9fd89cb618f27b7058943b7d345eb8"
       }
     ]
   }
