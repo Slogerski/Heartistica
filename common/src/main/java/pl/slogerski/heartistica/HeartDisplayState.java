@@ -7,6 +7,7 @@ import java.util.Arrays;
 final class HeartDisplayState {
     static final int MAX_HEARTS = 100;
     static final int HEARTS_PER_ROW = 10;
+    static final float ICON_HEIGHT = 8;
     static final int PERSISTENT_EMPTY_HEARTS = 20;
     static final long EMPTY_DURATION_MS = 5_000;
     static final byte HIDDEN = -1, FULL = 0, HALF = 1, EMPTY = 2, GOLD = 3, GOLD_HALF = 4;
@@ -99,6 +100,14 @@ final class HeartDisplayState {
     float iconStartX(float heartWidth, float advance) {
         if (slots <= HEARTS_PER_ROW) return -((Math.max(1, slots) - 1) * advance + heartWidth) / 2 - 1;
         return -anchorSlots * advance / 2 - 1;
+    }
+
+    float startX(float heartWidth, float advance, int anchorWidth) {
+        return label.isEmpty() ? iconStartX(heartWidth, advance) : -(anchorWidth + 1 + heartWidth) / 2 - 1;
+    }
+
+    int rows() {
+        return label.isEmpty() ? (slots + HEARTS_PER_ROW - 1) / HEARTS_PER_ROW : 1;
     }
 
     static float finitePositive(float value) {

@@ -68,6 +68,6 @@ public final class HeartisticaClient implements ClientModInitializer {
             if (catalogStarted && !languages.isStartupComplete() && languages.readAtStartup(System.nanoTime())) applyLanguage();
         });
         net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents.CLIENT_STOPPING.register(client -> catalog.close());
-        PlayerHeartRenderer.register();
+        EntityHeartRenderer.register();
     }
 }

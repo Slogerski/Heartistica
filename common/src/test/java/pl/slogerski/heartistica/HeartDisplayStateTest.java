@@ -126,7 +126,7 @@ public final class HeartDisplayStateTest {
                 "a ten-heart row gains exactly four and a half pixels across nine gaps");
         check(s.slots == 7 && s.iconStartX(8, HeartDisplayState.iconAdvance(8, 16)) == -27.5F,
                 "sixteen pixel row remains centered after the half-pixel spacing change");
-        check(s.slots == 7 && s.iconStartX(8, 7) == -26, "mixed single row is centered one pixel left");
+        check(s.slots == 7 && s.iconStartX(8, 7) == -26, "one row of health and absorption hearts is centered one pixel left");
         check(s.iconStartX(16, 15) == -54, "custom sprite width keeps single row centered");
         s.update(19, 20, 0, false, false, true, 1);
         check(s.iconStartX(8, 7) == -36.5F, "complete single row is centered one pixel left");
@@ -154,7 +154,44 @@ public final class HeartDisplayStateTest {
         check(s.slots == 2 && s.sprites[0] == HeartDisplayState.GOLD, "absorption-only overrides disabled damage filter");
         verifyConfiguration();
         verifyServerProfiles();
+        verifyTargets();
         System.out.println("Heart display regression checks passed: " + assertions);
+    }
+
+    private static void verifyTargets() {
+        var config = new HeartisticaConfig();
+        config.nearestPlayers = 1;
+        var targets = new HeartTargets<Object, HeartTargets.State<Object>>(HeartTargets.State::new);
+        Object near = new Object(), far = new Object(), mob = new Object(), healthyMob = new Object();
+        targets.beginTick();
+        var farState = targets.update(far, false, 64, 10, 20, 0, config, 0);
+        var nearState = targets.update(near, false, 4, 10, 20, 0, config, 0);
+        targets.finishPlayers();
+        var mobState = targets.update(mob, true, 1, 6, 10, 0, config, 0);
+        check(targets.update(healthyMob, true, 2, 10, 10, 0, config, 0) == null,
+                "hidden healthy mob does not allocate display state");
+        targets.finishTick();
+        check(targets.selected().size() == 2 && targets.selected().get(0) == nearState
+                && targets.selected().get(1) == mobState, "mob hearts do not consume the nearest player limit");
+        check(mobState.display.rows() == 1 && mobState.display.slots == 5, "mob hearts use the common display layout");
+
+        targets.beginTick();
+        check(targets.update(near, false, 4, 10, 20, 0, config, 50) == null, "unchanged player reuses the display");
+        targets.finishPlayers();
+        targets.finishTick();
+        check(targets.selected().size() == 1 && targets.selected().get(0) == nearState,
+                "selection drops mobs that are no longer tracked");
+
+        config.numericDisplay = true;
+        targets.beginTick();
+        var newFarState = targets.update(far, false, 64, 10, 20, 0, config, 100);
+        targets.finishPlayers();
+        targets.finishTick();
+        check(newFarState != farState && newFarState.display.rows() == 1
+                && newFarState.display.startX(8, 7, 30) == -20.5F,
+                "returning entity starts with fresh state and the shared text anchor");
+        targets.clear();
+        check(targets.selected().isEmpty(), "clearing world state clears the selection");
     }
 
     private static void verifyConfiguration() throws Exception {
@@ -163,6 +200,7 @@ public final class HeartDisplayStateTest {
         try {
             HeartisticaConfig config = HeartisticaConfig.load(file);
             check(config.onlyWhenDamaged, "damage filter is enabled by default");
+            check(config.showMobs(true) && !config.showMobs(false), "mob hearts default to singleplayer only");
             check(config.heightOffsetPixels == 4, "default height is plus four pixels");
             config.heightOffsetPixels = 0;
             check(Math.abs(config.heightAboveHead() - (0.62 + 2 / 16.0)) < 1e-9, "zero height includes two-pixel base offset");
@@ -183,6 +221,7 @@ public final class HeartDisplayStateTest {
             Files.writeString(file, "{\"configVersion\":3,\"heightOffsetPixels\":0}");
             check(HeartisticaConfig.load(file).heightOffsetPixels == 0, "saved height is not overwritten by new default");
             check(HeartisticaConfig.load(file).onlyWhenDamaged, "existing config without damage filter enables it");
+            check(!HeartisticaConfig.load(file).showMobs(false), "existing config without mob preference leaves multiplayer off");
             Files.writeString(file, "{\"range\":999,\"nearestPlayers\":-1,\"scalePercent\":1,\"heightOffsetPixels\":100,"
                     + "\"heartStyle\":\"../invalid\",\"onlyAbsorption\":true,\"onlyDamagedWithoutAbsorption\":true}");
             config = HeartisticaConfig.load(file);
@@ -194,10 +233,14 @@ public final class HeartDisplayStateTest {
             check(config.rangeSquared() == Double.POSITIVE_INFINITY, "OFF removes distance limit");
             config.heartStyle = "heartistica";
             config.onlyWhenDamaged = false;
+            config.showMobsInMultiplayer = true;
             config.save(file);
             check(!Files.readString(file).contains("onlyDamagedWithoutAbsorption"), "removed filter is not saved");
             config = HeartisticaConfig.load(file);
             check(!config.onlyWhenDamaged, "damage filter preference survives save and reload");
+            check(config.showMobs(false), "multiplayer mob preference survives save and reload");
+            config.enabled = false;
+            check(!config.showMobs(true) && !config.showMobs(false), "master toggle disables mob hearts everywhere");
             check(config.range == 0 && config.heartStyle.equals("heartistica") && config.onlyAbsorption,
                     "replacing existing config retains settings on reload");
             try (var files = Files.list(directory)) {
@@ -206,6 +249,7 @@ public final class HeartDisplayStateTest {
             config.reset();
             check(config.heightOffsetPixels == 4, "reset restores plus four pixel height");
             check(config.onlyWhenDamaged, "reset enables damage filter");
+            check(config.showMobs(true) && !config.showMobs(false), "reset restores the mob heart defaults");
             check(config.configVersion == 5 && config.range == 48 && !config.onlyAbsorption,
                     "reset restores version and defaults");
         } finally {
@@ -251,6 +295,7 @@ public final class HeartDisplayStateTest {
             check(profiles.canSave() && !profiles.hasProfile(), "connected server can create a profile");
             config.heightOffsetPixels = 2.5;
             config.nearestPlayers = 3;
+            config.showMobsInMultiplayer = true;
             check(profiles.saveForServer(), "server profile can be saved");
             check(profiles.hasProfile() && profiles.canRestore(), "saved server profile can be removed");
             check(HeartisticaConfig.load(defaultsPath).heightOffsetPixels == 0.5, "saving server profile leaves global defaults unchanged");
@@ -258,6 +303,7 @@ public final class HeartDisplayStateTest {
                     .get("schemaVersion").getAsInt() == 1, "server profiles contain a schema version");
             profiles.useServer("other.example");
             check(config.heightOffsetPixels == 0.5 && config.nearestPlayers == 0, "unrelated server uses global defaults");
+            check(!config.showMobs(false), "enabling mob hearts in a server profile leaves other servers unchanged");
             profiles.useServer("example.com");
             check(config.heightOffsetPixels == 2.5 && config.nearestPlayers == 3, "default-port server identity restores all settings");
             config.heightOffsetPixels = 3.5;
@@ -269,12 +315,14 @@ public final class HeartDisplayStateTest {
             profiles = new ServerProfiles(config, defaultsPath, profilesPath);
             profiles.useServer("example.com");
             check(config.heightOffsetPixels == 3.5 && config.nearestPlayers == 3, "server settings survive restart");
+            check(config.showMobs(false), "server profile retains its multiplayer mob preference");
             profiles.useServer("example.com:25566");
             check(config.heightOffsetPixels == 0.5 && !profiles.hasProfile(), "custom port has a separate server identity");
             profiles.useServer("example.com");
             check(profiles.backToDefault(), "server override can be removed");
             check(config.heightOffsetPixels == 0.5 && config.nearestPlayers == 0 && !profiles.hasProfile(),
                     "back to default restores personal defaults and removes override");
+            check(!config.showMobs(false), "removing a server profile restores the default multiplayer mob preference");
             profiles.useServer("other.example");
             profiles.useServer("example.com");
             check(config.heightOffsetPixels == 0.5, "removed override does not return on reconnect");

@@ -28,6 +28,7 @@ public final class HeartisticaConfig {
     public boolean numericDisplay = false;
     public boolean onlyAbsorption = false;
     public boolean onlyWhenDamaged = true;
+    public boolean showMobsInMultiplayer = false;
     public String heartStyle = "resource_pack";
     public enum EventHeartsMode { AUTO, ON, OFF }
     public EventHeartsMode eventHeartsMode = EventHeartsMode.AUTO;
@@ -123,6 +124,10 @@ public final class HeartisticaConfig {
                 onlyAbsorption, onlyWhenDamaged);
     }
 
+    boolean showMobs(boolean singleplayer) {
+        return enabled && (singleplayer || showMobsInMultiplayer);
+    }
+
     double rangeSquared() {
         return range == 0 ? Double.POSITIVE_INFINITY : (double) range * range;
     }
@@ -144,6 +149,7 @@ public final class HeartisticaConfig {
         numericDisplay = false;
         onlyAbsorption = false;
         onlyWhenDamaged = true;
+        showMobsInMultiplayer = false;
     }
 
     HeartisticaConfig copy() {
@@ -161,6 +167,7 @@ public final class HeartisticaConfig {
         numericDisplay = source.numericDisplay;
         onlyAbsorption = source.onlyAbsorption;
         onlyWhenDamaged = source.onlyWhenDamaged;
+        showMobsInMultiplayer = source.showMobsInMultiplayer;
         heartStyle = source.heartStyle;
         eventHeartsMode = source.eventHeartsMode;
         language = source.language;

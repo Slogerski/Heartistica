@@ -8,37 +8,29 @@ import net.minecraft.util.Util;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
-import net.minecraft.client.player.AbstractClientPlayer;
 import net.minecraft.network.chat.Component;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.ClipContext;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Matrix4fc;
 import org.joml.Matrix4f;
 
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.PriorityQueue;
+import static pl.slogerski.heartistica.HeartDisplayState.ICON_HEIGHT;
 
-final class PlayerHeartRenderer {
+final class EntityHeartRenderer {
     private static final int FULL_BRIGHT = 0xF000F0;
     private static final int HEART_COLOR = 0xFFFF4057;
     private static final int ABSORPTION_COLOR = 0xFFFFC83D;
-    private static final float HEART_HEIGHT = 8, ROW_ADVANCE = HEART_HEIGHT;
-    private static final Map<AbstractClientPlayer, PlayerState> STATES = new IdentityHashMap<>();
-    private static final List<PlayerState> SELECTED = new ArrayList<>();
-    private static final PriorityQueue<PlayerState> NEAREST = new PriorityQueue<>(
-            Comparator.comparingDouble((PlayerState state) -> state.distanceSquared).reversed());
+    private static final HeartTargets<LivingEntity, EntityState> TARGETS = new HeartTargets<>(EntityState::new);
     private static ClientLevel level;
-    private static long tick;
 
-    private PlayerHeartRenderer() {}
+    private EntityHeartRenderer() {}
     static void register() {
-        ClientTickEvents.END_CLIENT_TICK.register(PlayerHeartRenderer::update);
+        ClientTickEvents.END_CLIENT_TICK.register(EntityHeartRenderer::update);
         ClientPlayConnectionEvents.JOIN.register((handler, sender, client) -> {
             var entry = client.getCurrentServer();
             HeartisticaClient.profiles().useServer(entry == null ? null : entry.ip);
@@ -48,86 +40,94 @@ final class PlayerHeartRenderer {
             HeartisticaClient.profiles().useServer(null);
             clear();
         });
-        OfficialWorldRender.register(PlayerHeartRenderer::render);
+        OfficialWorldRender.register(EntityHeartRenderer::render);
     }
-    private static void clear() { STATES.clear(); SELECTED.clear(); NEAREST.clear(); level = null; }
+    private static void clear() { TARGETS.clear(); level = null; }
 
     private static void update(Minecraft minecraft) {
         HeartisticaConfig config = HeartisticaClient.config();
         if (minecraft.level != level) clear();
         level = minecraft.level;
         if (level == null || minecraft.player == null || !config.enabled) { clear(); return; }
-        tick++;
+        TARGETS.beginTick();
         long now = Util.getMillis();
         double rangeSquared = config.rangeSquared();
-        SELECTED.clear(); NEAREST.clear();
-        for (AbstractClientPlayer player : level.players()) {
-            if (!baseEligible(minecraft.player, player)) continue;
-            double distance = minecraft.player.distanceToSqr(player);
-            if (distance > rangeSquared) continue;
-            PlayerState state = STATES.computeIfAbsent(player, PlayerState::new);
-            state.seenTick = tick; state.distanceSquared = distance;
-            if (state.display.update(player.getHealth(), player.getMaxHealth(), player.getAbsorptionAmount(),
-                    config.numericDisplay, config.onlyAbsorption, config.onlyWhenDamaged, now)) {
-                state.text = Component.literal(state.display.label);
-                state.textWidth = minecraft.font.width(state.text);
-                state.anchorWidth = minecraft.font.width(state.display.anchorLabel);
-                state.visibilityTick = -1;
+        for (var player : level.players()) updateEntity(minecraft, player, config, rangeSquared, now);
+        TARGETS.finishPlayers();
+        if (mobsEnabled(minecraft, config)) {
+            Iterable<? extends Entity> nearby = config.range == 0 ? level.entitiesForRendering()
+                    : level.getEntitiesOfClass(Mob.class, minecraft.player.getBoundingBox().inflate(config.range));
+            for (Entity entity : nearby) {
+                if (entity instanceof Mob mob) updateEntity(minecraft, mob, config, rangeSquared, now);
             }
-            if (!matchesDisplay(player, config)) continue;
-            if (config.nearestPlayers == 0) SELECTED.add(state);
-            else if (NEAREST.size() < config.nearestPlayers) NEAREST.offer(state);
-            else if (distance < NEAREST.peek().distanceSquared) { NEAREST.poll(); NEAREST.offer(state); }
         }
-        if (config.nearestPlayers > 0) SELECTED.addAll(NEAREST);
-        STATES.values().removeIf(state -> state.seenTick != tick);
+        TARGETS.finishTick();
     }
 
-    private static boolean matchesDisplay(AbstractClientPlayer player, HeartisticaConfig config) {
-        return config.shouldDisplayHealth(player.getHealth(), player.getMaxHealth(), player.getAbsorptionAmount());
+    private static void updateEntity(Minecraft minecraft, LivingEntity entity, HeartisticaConfig config,
+                                     double rangeSquared, long now) {
+        if (!baseEligible(minecraft.player, entity)) return;
+        double distance = minecraft.player.distanceToSqr(entity);
+        if (distance > rangeSquared) return;
+        EntityState state = TARGETS.update(entity, entity instanceof Mob, distance,
+                entity.getHealth(), entity.getMaxHealth(), entity.getAbsorptionAmount(), config, now);
+        if (state == null) return;
+        state.text = Component.literal(state.display.label);
+        state.textWidth = minecraft.font.width(state.text);
+        state.anchorWidth = minecraft.font.width(state.display.anchorLabel);
+        state.visibilityTick = -1;
     }
-    private static boolean baseEligible(AbstractClientPlayer viewer, AbstractClientPlayer player) {
-        return player != viewer && !player.isRemoved() && player.isAlive() && !player.isSpectator()
-                && (!player.isInvisible() || hasVisibleArmor(player));
+
+    private static boolean mobsEnabled(Minecraft minecraft, HeartisticaConfig config) {
+        var server = minecraft.getSingleplayerServer();
+        return config.showMobs(server != null && !server.isPublished());
     }
-    private static boolean hasVisibleArmor(AbstractClientPlayer player) {
-        return !player.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
-                || !player.getItemBySlot(EquipmentSlot.CHEST).isEmpty()
-                || !player.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
-                || !player.getItemBySlot(EquipmentSlot.FEET).isEmpty();
+
+    private static boolean baseEligible(LivingEntity viewer, LivingEntity entity) {
+        return entity != viewer && !entity.isRemoved() && entity.isAlive() && !entity.isSpectator()
+                && (!entity.isInvisible() || hasVisibleArmor(entity));
+    }
+    private static boolean hasVisibleArmor(LivingEntity entity) {
+        return !entity.getItemBySlot(EquipmentSlot.HEAD).isEmpty()
+                || !entity.getItemBySlot(EquipmentSlot.CHEST).isEmpty()
+                || !entity.getItemBySlot(EquipmentSlot.LEGS).isEmpty()
+                || !entity.getItemBySlot(EquipmentSlot.FEET).isEmpty();
     }
 
     private static void render(OfficialWorldRender.Context context) {
         Minecraft minecraft = Minecraft.getInstance();
         HeartisticaConfig config = HeartisticaClient.config();
-        if (minecraft.player == null || minecraft.level != level || !config.enabled || SELECTED.isEmpty()) return;
+        if (minecraft.player == null || minecraft.level != level || !config.enabled || TARGETS.selected().isEmpty()) return;
+        long tick = TARGETS.tick();
+        boolean showMobs = mobsEnabled(minecraft, config);
         Camera camera = context.camera();
         Vec3 cameraPos = camera.position();
         float partialTick = context.partialTick();
         float scale = 0.025F * config.scalePercent / 100;
         HeartStyles.Style style = HeartStyles.selected();
         style.resolve(minecraft);
-        float heartWidth = HEART_HEIGHT * style.icon(0).width() / style.icon(0).height();
+        var icon = style.icon(HeartDisplayState.FULL);
+        float heartWidth = ICON_HEIGHT * icon.width() / icon.height();
         float advance = HeartDisplayState.iconAdvance(heartWidth, style.sourceWidth());
         PoseStack pose = context.pose();
         Matrix4fc cameraRotation = new Matrix4f().rotation(camera.rotation());
-        for (PlayerState state : SELECTED) {
-            AbstractClientPlayer player = state.player;
-            if (!baseEligible(minecraft.player, player) || !matchesDisplay(player, config)) continue;
+        for (EntityState state : TARGETS.selected()) {
+            LivingEntity entity = state.entity;
+            if ((!showMobs && entity instanceof Mob) || !baseEligible(minecraft.player, entity)
+                    || !config.shouldDisplayHealth(entity.getHealth(), entity.getMaxHealth(), entity.getAbsorptionAmount())) continue;
             HeartDisplayState display = state.display;
+            int rows = display.rows();
+            if (rows == 0) continue;
             boolean numeric = !display.label.isEmpty();
-            if (!numeric && display.slots == 0) continue;
-            Vec3 position = player.getPosition(partialTick);
-            double anchorY = position.y + player.getBbHeight() + config.heightAboveHead();
-            int rows = numeric ? 1 : (display.slots + HeartDisplayState.HEARTS_PER_ROW - 1) / HeartDisplayState.HEARTS_PER_ROW;
-            float startX = numeric ? -(state.anchorWidth + 1 + heartWidth) / 2 - 1
-                    : display.iconStartX(heartWidth, advance);
+            Vec3 position = entity.getPosition(partialTick);
+            double anchorY = position.y + entity.getBbHeight() + config.heightAboveHead();
+            float startX = display.startX(heartWidth, advance, state.anchorWidth);
             if (!inView(camera, cameraPos, position, anchorY)) continue;
             if (state.visibilityTick != tick || state.visibilityCamera == null
                     || state.visibilityCamera.distanceToSqr(cameraPos) > 1
                     || state.visibilityPosition.distanceToSqr(position) > 1
                     || state.visibilityHeight != config.heightOffsetPixels || state.visibilityScale != config.scalePercent) {
-                state.visible = hasClearView(minecraft, player, cameraPos, position, anchorY, rows, scale);
+                state.visible = hasClearView(minecraft, entity, cameraPos, position, anchorY, rows, scale);
                 state.visibilityTick = tick; state.visibilityCamera = cameraPos; state.visibilityPosition = position;
                 state.visibilityHeight = config.heightOffsetPixels; state.visibilityScale = config.scalePercent;
             }
@@ -149,7 +149,7 @@ final class PlayerHeartRenderer {
                             if (sprite == HeartDisplayState.HIDDEN) continue;
                             drawHeart(vertices, matrix, style, sprite,
                                     startX + slot % HeartDisplayState.HEARTS_PER_ROW * advance,
-                                    -(slot / HeartDisplayState.HEARTS_PER_ROW) * ROW_ADVANCE);
+                                    -(slot / HeartDisplayState.HEARTS_PER_ROW) * ICON_HEIGHT);
                         }
                     });
                 }
@@ -167,18 +167,18 @@ final class PlayerHeartRenderer {
         var forward = camera.forwardVector();
         return (dx * forward.x() + dy * forward.y() + dz * forward.z()) / len > -0.15;
     }
-    private static boolean hasClearView(Minecraft minecraft, AbstractClientPlayer player, Vec3 camera,
+    private static boolean hasClearView(Minecraft minecraft, LivingEntity entity, Vec3 camera,
                                         Vec3 position, double anchorY, int rows, float scale) {
-        Vec3 eye = position.add(0, player.getEyeY() - player.getY(), 0);
+        Vec3 eye = position.add(0, entity.getEyeY() - entity.getY(), 0);
         Vec3 top = new Vec3(position.x, Math.max(eye.y + 0.05,
-                anchorY + (rows - 1) * ROW_ADVANCE * scale + 0.05), position.z);
-        if (!clearRay(minecraft, player, eye, top)) return false;
-        return clearRay(minecraft, player, camera, eye)
-                || clearRay(minecraft, player, camera, position.add(0, player.getBbHeight() * 0.5, 0));
+                anchorY + (rows - 1) * ICON_HEIGHT * scale + 0.05), position.z);
+        if (!clearRay(minecraft, entity, eye, top)) return false;
+        return clearRay(minecraft, entity, camera, eye)
+                || clearRay(minecraft, entity, camera, position.add(0, entity.getBbHeight() * 0.5, 0));
     }
-    private static boolean clearRay(Minecraft minecraft, AbstractClientPlayer player, Vec3 from, Vec3 to) {
+    private static boolean clearRay(Minecraft minecraft, LivingEntity entity, Vec3 from, Vec3 to) {
         return minecraft.level.clip(new ClipContext(from, to, ClipContext.Block.COLLIDER,
-                ClipContext.Fluid.NONE, player)).getType() == HitResult.Type.MISS;
+                ClipContext.Fluid.NONE, entity)).getType() == HitResult.Type.MISS;
     }
     private static void drawHeart(VertexConsumer vertices, Matrix4fc matrix, HeartStyles.Style style,
                                   int sprite, float x, float y) {
@@ -186,19 +186,18 @@ final class PlayerHeartRenderer {
         drawIcon(vertices, matrix, style.icon(sprite), x, y);
     }
     private static void drawIcon(VertexConsumer vertices, Matrix4fc matrix, HeartStyles.Icon icon, float x, float y) {
-        float width = HEART_HEIGHT * icon.width() / icon.height();
+        float width = ICON_HEIGHT * icon.width() / icon.height();
         vertices.addVertex(matrix, x, y, 0).setColor(0xFFFFFFFF).setUv(icon.u0(), icon.v0()).setLight(FULL_BRIGHT);
-        vertices.addVertex(matrix, x, y + HEART_HEIGHT, 0).setColor(0xFFFFFFFF).setUv(icon.u0(), icon.v1()).setLight(FULL_BRIGHT);
-        vertices.addVertex(matrix, x + width, y + HEART_HEIGHT, 0).setColor(0xFFFFFFFF).setUv(icon.u1(), icon.v1()).setLight(FULL_BRIGHT);
+        vertices.addVertex(matrix, x, y + ICON_HEIGHT, 0).setColor(0xFFFFFFFF).setUv(icon.u0(), icon.v1()).setLight(FULL_BRIGHT);
+        vertices.addVertex(matrix, x + width, y + ICON_HEIGHT, 0).setColor(0xFFFFFFFF).setUv(icon.u1(), icon.v1()).setLight(FULL_BRIGHT);
         vertices.addVertex(matrix, x + width, y, 0).setColor(0xFFFFFFFF).setUv(icon.u1(), icon.v0()).setLight(FULL_BRIGHT);
     }
 
-    private static final class PlayerState {
-        final AbstractClientPlayer player; final HeartDisplayState display = new HeartDisplayState();
-        long seenTick, visibilityTick = -1; double distanceSquared;
+    private static final class EntityState extends HeartTargets.State<LivingEntity> {
+        long visibilityTick = -1;
         Component text = Component.empty(); int textWidth, anchorWidth, visibilityScale;
         double visibilityHeight;
         Vec3 visibilityCamera, visibilityPosition; boolean visible;
-        PlayerState(AbstractClientPlayer player) { this.player = player; }
+        EntityState(LivingEntity entity) { super(entity); }
     }
 }

@@ -10,6 +10,7 @@
   "heartistica.display.numeric": "Wyświetlanie: Tekst X/Y + Ikona",
   "heartistica.only_absorption": "Tylko Serca Absorpcji",
   "heartistica.only_when_damaged": "Tylko Przy Niepełnym Zdrowiu",
+  "heartistica.mobs_multiplayer": "Zdrowie Mobów (Tryb Wieloosobowy)",
   "heartistica.save_server": "Zapisz Dla Serwera",
   "heartistica.back_default": "Ustawienia Ogólne",
   "heartistica.save_failed": "Błąd Zapisu",

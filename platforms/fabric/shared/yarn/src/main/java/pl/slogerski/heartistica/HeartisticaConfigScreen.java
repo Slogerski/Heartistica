@@ -13,7 +13,7 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
     private final Screen parent;
     private final HeartisticaConfig config = HeartisticaClient.config();
     private final CatalogView catalog = new CatalogView(HeartisticaClient.catalog(), config);
-    private static final int CONTENT_HEIGHT = 328, GALLERY_TOP = 248;
+    private static final int CONTENT_HEIGHT = 350, GALLERY_TOP = 270;
     private final List<Placement> contentWidgets = new ArrayList<>();
     private ButtonWidget resetButton, doneButton, eventButton, catalogButton;
     private int scroll, contentOrigin, viewportBottom;
@@ -54,19 +54,21 @@ public final class HeartisticaConfigScreen extends HeartConfigScreenBase {
         }).dimensions(left, 132, panelWidth, 20).build());
         content(toggle(left, 154, "heartistica.only_absorption", config.onlyAbsorption, value -> config.onlyAbsorption = value));
         content(toggle(left, 176, "heartistica.only_when_damaged", config.onlyWhenDamaged, value -> config.onlyWhenDamaged = value));
+        content(toggle(left, 198, "heartistica.mobs_multiplayer", config.showMobsInMultiplayer,
+                value -> config.showMobsInMultiplayer = value));
         ButtonWidget save = content(ButtonWidget.builder(HeartText.text("heartistica.save_server"), button -> {
             if (HeartisticaClient.profiles().saveForServer()) clearAndInit();
             else button.setMessage(HeartText.text("heartistica.save_failed"));
-        }).dimensions(left, 198, half, 20).build());
+        }).dimensions(left, 220, half, 20).build());
         ButtonWidget restore = content(ButtonWidget.builder(HeartText.text("heartistica.back_default"), button -> {
             if (HeartisticaClient.profiles().backToDefault()) clearAndInit();
             else button.setMessage(HeartText.text("heartistica.save_failed"));
-        }).dimensions(left + half + 6, 198, half, 20).build());
+        }).dimensions(left + half + 6, 220, half, 20).build());
         save.active = HeartisticaClient.profiles().canSave();
         restore.active = HeartisticaClient.profiles().canRestore();
         content(ButtonWidget.builder(HeartText.language(), button -> {
             HeartisticaClient.changeLanguage(); clearAndInit();
-        }).dimensions(left, 220, panelWidth, 20).build());
+        }).dimensions(left, 242, panelWidth, 20).build());
         catalogButton = addDrawableChild(ButtonWidget.builder(HeartText.text("heartistica.catalog.open"), button -> {
             catalogMode = true; clearAndInit();
         }).dimensions(left, height - 52, panelWidth, 20).build());

@@ -28,6 +28,7 @@ sourceSets {
         resources.srcDir("common/src/main/resources")
         resources.include("assets/heartistica/lang/*.json")
         java.include("pl/slogerski/heartistica/HeartDisplayState.java")
+        java.include("pl/slogerski/heartistica/HeartTargets.java")
         java.include("pl/slogerski/heartistica/HeartVisibilityRules.java")
         java.include("pl/slogerski/heartistica/HeartisticaConfig.java")
         java.include("pl/slogerski/heartistica/ServerProfiles.java")
